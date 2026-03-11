@@ -6,8 +6,6 @@ import numpy as np
 # Qwen3-VL uses the same classes as Qwen2-VL or AutoModelForCausalLM/AutoProcessor
 # Qwen3-VL-8B-Instruct is compatible with Qwen2VLForConditionalGeneration or AutoModelForImageTextToText
 from transformers import AutoProcessor, AutoModelForCausalLM
-# Or depending on HF transformer updates, let's use the explicit classes if known, else Auto blocks
-from transformers import Qwen2VLForConditionalGeneration
 
 torch.backends.cudnn.enabled = True
 torch.backends.cudnn.benchmark = True
@@ -117,12 +115,12 @@ class Qwen3VL:
 
         for prefix, model_name in self.model_mappings.items():
             if identifier.startswith(prefix):
-                # Using Qwen2VL class as Qwen3-VL usually shares the same architecture in HuggingFace 
-                # or AutoModel will route it properly. We'll use Qwen2VLForConditionalGeneration for safety.
-                model = Qwen2VLForConditionalGeneration.from_pretrained(
+                # Use AutoModelForImageTextToText to infer the correct Qwen3 architecture type automatically
+                model = AutoModelForCausalLM.from_pretrained(
                     model_name,
                     torch_dtype=torch.float16,
-                    device_map="auto"
+                    device_map="auto",
+                    trust_remote_code=True
                 )
                 
                 self.processor = AutoProcessor.from_pretrained(model_name)
