@@ -361,6 +361,9 @@ class BenchmarkScore:
         # the OS Out Of Memory (OOM) Killer. We explicitly delete the extractor because its job is done.
         del self.extractor
         del self.model
+        if hasattr(self.model_instance, 'model'):
+            self.model_instance.model = None
+            del self.model_instance.model
         import gc
         gc.collect()
         if torch.cuda.is_available():
