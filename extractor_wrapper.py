@@ -201,6 +201,12 @@ class FeatureExtractor:
         with torch.inference_mode(), torch.amp.autocast('cuda'):
             if isinstance(inputs, dict):
                 # Ensure all tensors in the dictionary are on the device
+                for k, v in list(inputs.items()):
+                    if isinstance(v, list) and len(v) > 0 and isinstance(v[0], torch.Tensor):
+                        # BBScore custom_collate turns dictionaries into lists of batched items.
+                        # Since Qwen outputs pre-batched [1, ...] tensors, we concatenate them along batch dim.
+                        inputs[k] = torch.cat(v, dim=0)
+
                 for k, v in inputs.items():
                     if isinstance(v, torch.Tensor):
                         inputs[k] = v.to(self.device)
