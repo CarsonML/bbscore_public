@@ -2,17 +2,19 @@ import os
 import torch
 from PIL import Image
 import numpy as np
+from transformers import AutoProcessor
 
-# Qwen3-VL uses the same classes as Qwen2-VL or AutoModelForCausalLM/AutoProcessor
-# Qwen3-VL-8B-Instruct is compatible with Qwen2VLForConditionalGeneration or AutoModelForImageTextToText
-from transformers import AutoProcessor, AutoModelForCausalLM
+try:
+    from transformers import Qwen3VLForConditionalGeneration
+except ImportError:
+    raise ImportError("Qwen3-VL requires the latest transformers from source. "
+                      "Run: pip install git+https://github.com/huggingface/transformers")
 
 torch.backends.cudnn.enabled = True
 torch.backends.cudnn.benchmark = True
 torch.backends.cudnn.allow_tf32 = True
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.set_float32_matmul_precision('high')
-
 
 class Qwen3VL:
     """Loads pre-trained Qwen3-VL models for feature extraction."""
@@ -21,13 +23,12 @@ class Qwen3VL:
         """Initializes the Qwen3-VL loader."""
         self.model_mappings = {
             "QWEN3-VL-8B-IMG": "Qwen/Qwen3-VL-8B-Instruct",
-            # Placeholders for future multimodal toggles
             "QWEN3-VL-8B-TXT": "Qwen/Qwen3-VL-8B-Instruct",
             "QWEN3-VL-8B-JOINT": "Qwen/Qwen3-VL-8B-Instruct",
         }
 
         self.processor = None
-        self.mode = None # "img", "txt", or "joint"
+        self.mode = None
         self.static = True
 
     def _determine_mode(self, identifier: str):
@@ -41,16 +42,8 @@ class Qwen3VL:
 
     def preprocess_fn(self, input_data, fps=None):
         """
-        Preprocesses input data for Qwen3-VL.
-        For phase 1, we only handle image inputs.
-
-        Args:
-            input_data: PIL Image, file path (str), or numpy array.
-
-        Returns:
-            Dict[str, torch.Tensor]: Preprocessed inputs for the model.
+        Preprocesses input data for Qwen3-VL using the native apply_chat_template.
         """
-        # Ensure we are currently in image-only mode 
         if self.mode != "img":
             raise NotImplementedError(f"Mode {self.mode} preprocessing is not fully implemented yet.")
 
@@ -65,7 +58,7 @@ class Qwen3VL:
         else:
             raise ValueError("Input must be a PIL Image, file path, or numpy array")
 
-        # Qwen3-VL expects the chat template to format the vision input correctly
+        # Qwen3-VL natively supports putting the image object directly into the messages dict!
         messages = [
             {
                 "role": "user",
@@ -79,89 +72,40 @@ class Qwen3VL:
             }
         ]
 
-        # Use the processor to apply the chat template
-        text = self.processor.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True
+        # Preparation for inference: apply_chat_template handles images and tokenization now!
+        inputs = self.processor.apply_chat_template(
+            messages, 
+            tokenize=True, 
+            add_generation_prompt=True, 
+            return_dict=True, 
+            return_tensors="pt"
         )
 
-        image_inputs, video_inputs = process_vision_info(messages)
-
-        inputs = self.processor(
-            text=[text],
-            images=image_inputs,
-            videos=video_inputs,
-            padding=True,
-            return_tensors="pt",
-        )
-
-        # Move to GPU if available
         if torch.cuda.is_available():
             inputs = inputs.to("cuda")
         
         return inputs
 
     def get_model(self, identifier):
-        """
-        Loads a Qwen3-VL model based on the identifier.
-
-        Args:
-            identifier (str): Identifier for the model variant.
-
-        Returns:
-            The loaded model.
-        """
         identifier = identifier.upper()
         self.mode = self._determine_mode(identifier)
 
         for prefix, model_name in self.model_mappings.items():
             if identifier.startswith(prefix):
-                # Use AutoModelForImageTextToText to infer the correct Qwen3 architecture type automatically
-                model = AutoModelForCausalLM.from_pretrained(
+                # Load with Qwen3VLForConditionalGeneration explicitly as per documentation
+                model = Qwen3VLForConditionalGeneration.from_pretrained(
                     model_name,
-                    torch_dtype=torch.float16,
-                    device_map="auto",
-                    trust_remote_code=True
+                    torch_dtype="auto",
+                    device_map="auto"
                 )
                 
                 self.processor = AutoProcessor.from_pretrained(model_name)
-                
                 return model
 
-        raise ValueError(
-            f"Unknown model identifier: {identifier}. "
-            f"Available mappings: {', '.join(self.model_mappings.keys())}"
-        )
+        raise ValueError(f"Unknown model identifier: {identifier}.")
 
     def postprocess_fn(self, features_np):
-        """
-        Postprocesses model output by flattening features.
-        """
         if features_np.ndim == 3:
-            # (batch_size, seq_len, feature_dim) -> (batch_size, -1)
             batch_size = features_np.shape[0]
-            flattened_features = features_np.reshape(batch_size, -1)
-        else:
-            flattened_features = features_np
-            
-        return flattened_features
-
-# Need process_vision_info utility
-def process_vision_info(messages):
-    """
-    Helper function to extract images/videos from the Qwen messages format
-    """
-    try:
-        from qwen_vl_utils import process_vision_info as qvu_process
-        return qvu_process(messages)
-    except ImportError:
-         image_inputs = []
-         video_inputs = []
-         for msg in messages:
-             if isinstance(msg, dict) and 'content' in msg:
-                 for c in msg['content']:
-                     if isinstance(c, dict):
-                         if c.get('type') == 'image' and 'image' in c:
-                             image_inputs.append(c['image'])
-                         elif c.get('type') == 'video' and 'video' in c:
-                             video_inputs.append(c['video'])
-         return image_inputs, video_inputs
+            return features_np.reshape(batch_size, -1)
+        return features_np
