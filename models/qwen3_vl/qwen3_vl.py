@@ -73,16 +73,21 @@ class Qwen3VL:
         ]
 
         # Preparation for inference: apply_chat_template handles images and tokenization now!
-        inputs = self.processor.apply_chat_template(
+        inputs_batch_feature = self.processor.apply_chat_template(
             messages, 
             tokenize=True, 
             add_generation_prompt=True, 
             return_dict=True, 
             return_tensors="pt"
         )
+        
+        # Convert HuggingFace BatchFeature into a generic dictionary so standard deep neural extraction unpacking (**inputs) works
+        inputs = dict(inputs_batch_feature)
 
         if torch.cuda.is_available():
-            inputs = inputs.to("cuda")
+            for key in inputs:
+                if isinstance(inputs[key], torch.Tensor):
+                    inputs[key] = inputs[key].to("cuda")
         
         return inputs
 

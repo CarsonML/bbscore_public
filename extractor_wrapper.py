@@ -198,10 +198,17 @@ class FeatureExtractor:
         for l in self.layer_names:
             self.features[l] = []
 
-        if isinstance(inputs, torch.Tensor):
-            inputs = inputs.to(self.device)
         with torch.inference_mode(), torch.amp.autocast('cuda'):
-            return self.model(inputs)
+            if isinstance(inputs, dict):
+                # Ensure all tensors in the dictionary are on the device
+                for k, v in inputs.items():
+                    if isinstance(v, torch.Tensor):
+                        inputs[k] = v.to(self.device)
+                return self.model(**inputs)
+            else:
+                if isinstance(inputs, torch.Tensor):
+                    inputs = inputs.to(self.device)
+                return self.model(inputs)
 
     @classmethod
     def _set_weights(self, outputs: List[torch.Tensor], shape: Sequence[int]) -> torch.Tensor:
