@@ -356,6 +356,16 @@ class BenchmarkScore:
             features_test_raw, labels_test = self.extractor.extract_features(
                 self.stimulus_test, downsample_factor, self.test_batch_size)
 
+        # FREE VLM MEMORY BEFORE LOADING FMRI DATASET
+        # Qwen3-VL takes ~17GB of RAM. The fMRI dataset takes ~7GB. Running both at once crashes 
+        # the OS Out Of Memory (OOM) Killer. We explicitly delete the extractor because its job is done.
+        del self.extractor
+        del self.model
+        import gc
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
         all_results = {}
 
         # CASE 1: Aggregated (Concatenate or Stack)
