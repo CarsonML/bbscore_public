@@ -58,7 +58,7 @@ MODEL_MODULES = [
     "vjepa2",
     "wav2vec2",
     "whisper",
-    "qwen2_vl",
+    "qwen3_5",
 ]
 
 for module_name in MODEL_MODULES:
