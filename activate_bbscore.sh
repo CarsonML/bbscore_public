@@ -10,7 +10,7 @@ else
     return 1
 fi
 
-export SCIKIT_LEARN_DATA="/afs/.ir/users/t/h/thekej/bbscore_data"
+export SCIKIT_LEARN_DATA="/Users/cml/bbscore_data"
 
 PYTHON_PATH=$(which python)
 echo "BBScore environment activated!"

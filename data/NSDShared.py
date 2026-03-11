@@ -82,8 +82,7 @@ class NSDStimulusSet(BaseDataset):
                     force_download=self.overwrite,
                 )
             except Exception as e:
-                print(
-                    f"GCS download failed ({e}), falling back to Google Drive...")
+                print(f"GCS download failed ({e}), falling back to Google Drive...")
                 file_id = self._GDRIVE_FILE_IDS[subj]
                 url = f'https://drive.google.com/uc?id={file_id}&export=download'
                 self.fetch(
@@ -177,8 +176,7 @@ class NSDAssembly(BaseDataset):
                     force_download=self.overwrite,
                 )
             except Exception as e:
-                print(
-                    f"GCS download failed ({e}), falling back to Google Drive...")
+                print(f"GCS download failed ({e}), falling back to Google Drive...")
                 file_id = self._GDRIVE_FILE_IDS[subj]
                 url = f'https://drive.google.com/uc?id={file_id}&export=download'
                 self.fetch(

@@ -1,0 +1,103 @@
+
+[1mBBScore Validation[0m
+Running tiers 1 through 3
+
+
+[1m============================================================[0m
+[1m  Tier 1: Environment & Dependencies[0m
+[1m============================================================[0m
+
+[1m  Python[0m
+  [92mPASS[0m  Python 3.11.14
+
+[1m  Dependencies[0m
+  [92mPASS[0m  torch
+  [92mPASS[0m  numpy
+  [92mPASS[0m  scipy
+  [92mPASS[0m  sklearn
+  [92mPASS[0m  h5py
+  [92mPASS[0m  transformers
+  [92mPASS[0m  timm
+  [92mPASS[0m  PIL
+  [92mPASS[0m  cv2
+  [92mPASS[0m  tqdm
+  [92mPASS[0m  boto3
+  [92mPASS[0m  rsatoolbox
+
+[1m  BBScore Registries[0m
+cuML not installed, falling back to scikit‑learn.
+cuML can speed up linear probes ~50× on GPU; install via: https://docs.rapids.ai/api/cuml/stable/
+[Warning] Failed to import model module: robust_models
+No module named 'pkg_resources'
+  [92mPASS[0m  179 models, 165 benchmarks, 22 metrics
+
+[1m  Hardware[0m
+  [92mPASS[0m  CPU: 10 cores / 10 threads
+  [92mPASS[0m  RAM: 34 GB
+  [92mPASS[0m  GPU: Apple MPS (Metal Performance Shaders)
+  [92mPASS[0m  Disk: 152 GB free
+
+[1m  Configuration[0m
+  [92mPASS[0m  SCIKIT_LEARN_DATA = /Users/cml/bbscore_data
+
+[1m============================================================[0m
+[1m  Tier 2: Model Loading & Inference[0m
+[1m============================================================[0m
+
+[1m  Vision Model (resnet18)[0m
+ResNet18 ResNet18
+  [92mPASS[0m  Forward pass on cpu (0.7s)
+
+[1m  Vision Model (resnet50)[0m
+  [92mPASS[0m  Forward pass on cpu (0.4s)
+
+[1m  Language Model (gpt2_small)[0m
+  [92mPASS[0m  Forward pass + feature extraction on cpu (dim=768, 2.0s)
+
+[1m============================================================[0m
+[1m  Tier 3: End-to-End Benchmarks[0m
+[1m============================================================[0m
+  First run downloads datasets from the cloud.
+  This may take several minutes depending on your connection.
+
+
+[1m  Vision Benchmark (resnet18 + NSDV1 + RSA)[0m
+Warning: AWS_CONFIG_FILE environment variable not set. Authenticated S3 downloads may fail.
+ResNet18 ResNet18
+Extracting features...
+Running metrics for Separate Layer: _orig_mod.resnet.encoder.stages.3
+Warning: AWS_CONFIG_FILE environment variable not set. Authenticated S3 downloads may fail.
+Size of area V1: 6999
+Error calling get_assembly for training: Failed to interpret file '/Users/cml/bbscore_data/NSDAssembly/subj02_nativesurface_nsdgeneral.pkl' as a pickle
+  [91mFAIL[0m  Vision benchmark: Failed to interpret file '/Users/cml/bbscore_data/NSDAssembly/subj02_nativesurface_nsdgeneral.pkl' as a pickle
+
+[1m  Language Benchmark (gpt2_small + LeBel2023 + Ridge)[0m
+Warning: AWS_CONFIG_FILE environment variable not set. Authenticated S3 downloads may fail.
+DEBUG: Found 84 TextGrid files.
+Extracting features...
+Running metrics for Separate Layer: transformer.h.11
+Warning: AWS_CONFIG_FILE environment variable not set. Authenticated S3 downloads may fail.
+Found 0 files for UTS01, expected 84. Redownloading...
+Downloading fMRI data for UTS01...
+Downloading s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/ to /Users/cml/bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data using S3...
+AWS CLI not available, falling back to boto3...
+edownloading...
+Downloading fMRI data for UTS01...
+Downloading s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/ to /Users/cml/bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data using S3...
+AWS CLI not available, falling back to boto3...
+Error downloading data for UTS01: Error during S3 download: [Errno 2] No such file or directory: '/Users/cml/bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/adventuresinsayingyes.hf5.e4DB0cCC' -> '/Users/cml/bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/adventuresinsayingyes.hf5'
+DEBUG: Found 0 HF5 files for UTS01.
+Error calling get_assembly for training: No .hf5 files found for UTS01
+  [91mFAIL[0m  Language benchmark: No .hf5 files found for UTS01
+
+[1m============================================================[0m
+[1m  Validation Summary[0m
+[1m============================================================[0m
+  [92mPASS[0m  Tier 1: Environment & Dependencies  (9s)
+  [92mPASS[0m  Tier 2: Model Loading & Inference  (3s)
+  [91mFAIL[0m  Tier 3: End-to-End Benchmarks  (294s)
+
+  [91m[1mSome checks failed. Fix the issues above before starting.[0m
+[1m============================================================[0m
+
+

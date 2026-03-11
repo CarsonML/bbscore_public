@@ -1,0 +1,38 @@
+
+BBScore Validation
+Running tiers 1 through 3
+
+
+============================================================
+  Tier 1: Environment & Dependencies
+============================================================
+
+  Python
+  PASS  Python 3.13.9
+
+  Dependencies
+  FAIL  torch
+        Not installed. Run: pip install -r requirements.txt
+  PASS  numpy
+  PASS  scipy
+  PASS  sklearn
+  PASS  h5py
+  FAIL  transformers
+        Not installed. Run: pip install -r requirements.txt
+  FAIL  timm
+        Not installed. Run: pip install -r requirements.txt
+  PASS  PIL
+  FAIL  cv2
+        Not installed. Run: pip install -r requirements.txt
+  PASS  tqdm
+  FAIL  boto3
+        Not installed. Run: pip install -r requirements.txt
+  FAIL  rsatoolbox
+        Not installed. Run: pip install -r requirements.txt
+
+  BBScore Registries
+  FAIL  Failed to load registries: No module named 'torch'
+
+  Hardware
+  PASS  CPU: 10 cores / 10 threads
+  PASS  RAM: 34 GB

@@ -1,0 +1,187 @@
+
+BBScore Validation
+Running tiers 1 through 3
+
+
+============================================================
+  Tier 1: Environment & Dependencies
+============================================================
+
+  Python
+  PASS  Python 3.11.14
+
+  Dependencies
+  PASS  torch
+  PASS  numpy
+  PASS  scipy
+  PASS  sklearn
+  PASS  h5py
+  PASS  transformers
+  PASS  timm
+  PASS  PIL
+  PASS  cv2
+  PASS  tqdm
+  PASS  boto3
+  PASS  rsatoolbox
+
+  BBScore Registries
+cuML not installed, falling back to scikit‑learn.
+cuML can speed up linear probes ~50× on GPU; install via: https://docs.rapids.ai/api/cuml/stable/
+[Warning] Failed to import model module: robust_models
+No module named 'pkg_resources'
+  PASS  179 models, 165 benchmarks, 22 metrics
+
+  Hardware
+  PASS  CPU: 10 cores / 10 threads
+  PASS  RAM: 34 GB
+  PASS  GPU: Apple MPS (Metal Performance Shaders)
+  PASS  Disk: 155 GB free
+
+  Configuration
+  PASS  SCIKIT_LEARN_DATA = /Users/cml/bbscore_data
+
+============================================================
+  Tier 2: Model Loading & Inference
+============================================================
+
+  Vision Model (resnet18)
+ResNet18 ResNet18
+  PASS  Forward pass on cpu (0.7s)
+
+  Vision Model (resnet50)
+  PASS  Forward pass on cpu (0.4s)
+
+  Language Model (gpt2_small)
+  PASS  Forward pass + feature extraction on cpu (dim=768, 1.6s)
+
+============================================================
+  Tier 3: End-to-End Benchmarks
+============================================================
+  First run downloads datasets from the cloud.
+  This may take several minutes depending on your connection.
+
+
+  Vision Benchmark (resnet18 + NSDV1 + RSA)
+Warning: AWS_CONFIG_FILE environment variable not set. Authenticated S3 downloads may fail.
+ResNet18 ResNet18
+Extracting features...
+Running metrics for Separate Layer: _orig_mod.resnet.encoder.stages.3
+Warning: AWS_CONFIG_FILE environment variable not set. Authenticated S3 downloads may fail.
+Size of area V1: 6999
+Downloading https://storage.googleapis.com/bbscore_datasets/nsd/subj02_nativesurface_nsdgeneral.pkl to /Users/cml/bbscore_data/NSDAssembly/subj02_nativesurface_nsdgeneral.pkl using HTTP...
+Size of area V1: 6417
+Downloading https://storage.googleapis.com/bbscore_datasets/nsd/subj05_nativesurface_nsdgeneral.pkl to /Users/cml/bbscore_data/NSDAssembly/subj05_nativesurface_nsdgeneral.pkl using HTTP...
+Size of area V1: 5585
+Downloading https://storage.googleapis.com/bbscore_datasets/nsd/subj07_nativesurface_nsdgeneral.pkl to /Users/cml/bbscore_data/NSDAssembly/subj07_nativesurface_nsdgeneral.pkl using HTTP...
+Size of area V1: 5493
+  PASS  ResNet-18 x NSDV1 RSA: spearman=0.1562 (1005s)
+
+  Language Benchmark (gpt2_small + LeBel2023 + Ridge)
+Warning: AWS_CONFIG_FILE environment variable not set. Authenticated S3 downloads may fail.
+DEBUG: Found 84 TextGrid files.
+Extracting features...
+Running metrics for Separate Layer: transformer.h.11
+Warning: AWS_CONFIG_FILE environment variable not set. Authenticated S3 downloads may fail.
+Found 0 files for UTS01, expected 84. Redownloading...
+Downloading fMRI data for UTS01...
+Downloading s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/ to /Users/cml/bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data using S3...
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/againstthewind.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/againstthewind.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/adollshouse.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/adollshouse.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/alternateithicatom.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/alternateithicatom.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/afatherscover.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/afatherscover.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/beneaththemushroomcloud.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/beneaththemushroomcloud.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/becomingindian.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/becomingindian.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/backsideofthestorm.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/backsideofthestorm.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/avatar.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/avatar.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/bluehope.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/bluehope.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/adventuresinsayingyes.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/adventuresinsayingyes.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/birthofanation.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/birthofanation.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/catfishingstrangerstofindmyself.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/catfishingstrangerstofindmyself.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/buck.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/buck.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/cocoonoflove.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/cocoonoflove.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/christmas1940.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/christmas1940.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/cautioneating.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/cautioneating.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/breakingupintheageofgoogle.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/breakingupintheageofgoogle.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/firetestforlove.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/firetestforlove.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/forgettingfear.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/forgettingfear.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/fromboyhoodtofatherhood.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/fromboyhoodtofatherhood.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/gangstersandcookies.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/gangstersandcookies.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/exorcism.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/exorcism.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/eyespy.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/eyespy.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/comingofageondeathrow.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/comingofageondeathrow.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/food.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/food.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/hangtime.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/hangtime.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/gpsformylostidentity.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/gpsformylostidentity.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/howtodraw.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/howtodraw.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/goldiethegoldfish.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/goldiethegoldfish.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/haveyoumethimyet.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/haveyoumethimyet.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/itsabox.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/itsabox.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/jugglingandjesus.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/jugglingandjesus.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/kiksuya.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/kiksuya.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/leavingbaghdad.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/leavingbaghdad.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/inamoment.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/inamoment.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/life.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/life.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/ifthishaircouldtalk.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/ifthishaircouldtalk.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/golfclubbing.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/golfclubbing.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/goingthelibertyway.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/goingthelibertyway.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/lifereimagined.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/lifereimagined.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/listo.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/listo.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/lifeanddeathontheoregontrail.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/lifeanddeathontheoregontrail.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/legacy.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/legacy.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/myfathershands.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/myfathershands.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/metsmagic.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/metsmagic.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/mybackseatviewofagreatromance.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/mybackseatviewofagreatromance.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/mayorofthefreaks.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/mayorofthefreaks.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/myfirstdaywiththeyankees.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/myfirstdaywiththeyankees.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/notontheusualtour.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/notontheusualtour.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/naked.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/naked.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/penpal.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/penpal.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/onlyonewaytofindout.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/onlyonewaytofindout.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/odetostepfather.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/odetostepfather.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/quietfire.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/quietfire.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/reachingoutbetweenthebars.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/reachingoutbetweenthebars.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/shoppinginchina.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/shoppinginchina.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/singlewomanseekingmanwich.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/singlewomanseekingmanwich.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/stagefright.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/stagefright.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/sloth.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/sloth.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/souls.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/souls.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/sweetaspie.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/sweetaspie.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/superheroesjustforeachother.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/superheroesjustforeachother.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/stumblinginthedark.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/stumblinginthedark.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/swimmingwithastronauts.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/swimmingwithastronauts.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/thatthingonmyarm.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/thatthingonmyarm.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/theadvancedbeginner.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/theadvancedbeginner.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/theclosetthatateeverything.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/theclosetthatateeverything.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/thecurse.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/thecurse.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/theinterview.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/theinterview.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/thefreedomridersandme.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/thefreedomridersandme.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/thetiniestbouquet.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/thetiniestbouquet.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/theshower.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/theshower.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/thetriangleshirtwaistconnection.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/thetriangleshirtwaistconnection.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/thepostmanalwayscalls.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/thepostmanalwayscalls.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/threemonths.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/threemonths.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/tildeath.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/tildeath.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/thumbsup.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/thumbsup.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/undertheinfluence.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/undertheinfluence.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/treasureisland.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/treasureisland.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/vixenandtheussr.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/vixenandtheussr.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/wildwomenanddancingqueens.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/wildwomenanddancingqueens.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/whenmothersbullyback.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/whenmothersbullyback.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/waitingtogo.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/waitingtogo.hf5
+download: s3://openneuro.org/ds003020/derivative/preprocessed_data/UTS01/wheretheressmoke.hf5 to ../bbscore_data/LeBel2023Assembly/ds003020/derivative/preprocessed_data/UTS01/wheretheressmoke.hf5
+DEBUG: Found 84 HF5 files for UTS01.
+DEBUG: Stacking 84 stories for UTS01
+DEBUG: Final fmri_data shape: (84, 81126)
+Using Standard K-Fold with 10 splits.
+  PASS  GPT-2 Small x LeBel2023 Ridge: median_ceiled_pearson=0.0000 (3584s)
+
+============================================================
+  Validation Summary
+============================================================
+  PASS  Tier 1: Environment & Dependencies  (8s)
+  PASS  Tier 2: Model Loading & Inference  (3s)
+  PASS  Tier 3: End-to-End Benchmarks  (4588s)
+
+  Your machine is ready for BBScore experiments.
+============================================================
+

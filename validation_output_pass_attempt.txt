@@ -1,0 +1,81 @@
+
+[1mBBScore Validation[0m
+Running tiers 1 through 3
+
+
+[1m============================================================[0m
+[1m  Tier 1: Environment & Dependencies[0m
+[1m============================================================[0m
+
+[1m  Python[0m
+  [92mPASS[0m  Python 3.11.14
+
+[1m  Dependencies[0m
+  [92mPASS[0m  torch
+  [92mPASS[0m  numpy
+  [92mPASS[0m  scipy
+  [92mPASS[0m  sklearn
+  [92mPASS[0m  h5py
+  [92mPASS[0m  transformers
+  [92mPASS[0m  timm
+  [92mPASS[0m  PIL
+  [92mPASS[0m  cv2
+  [92mPASS[0m  tqdm
+  [92mPASS[0m  boto3
+  [92mPASS[0m  rsatoolbox
+
+[1m  BBScore Registries[0m
+cuML not installed, falling back to scikit‑learn.
+cuML can speed up linear probes ~50× on GPU; install via: https://docs.rapids.ai/api/cuml/stable/
+[Warning] Failed to import model module: robust_models
+No module named 'pkg_resources'
+  [92mPASS[0m  179 models, 165 benchmarks, 22 metrics
+
+[1m  Hardware[0m
+  [92mPASS[0m  CPU: 10 cores / 10 threads
+  [92mPASS[0m  RAM: 34 GB
+  [92mPASS[0m  GPU: Apple MPS (Metal Performance Shaders)
+  [92mPASS[0m  Disk: 172 GB free
+
+[1m  Configuration[0m
+  [93mWARN[0m  SCIKIT_LEARN_DATA not set. Set it to a directory with 50+ GB free space.
+
+[1m============================================================[0m
+[1m  Tier 2: Model Loading & Inference[0m
+[1m============================================================[0m
+
+[1m  Vision Model (resnet18)[0m
+ResNet18 ResNet18
+  [92mPASS[0m  Forward pass on cpu (4.9s)
+
+[1m  Vision Model (resnet50)[0m
+Downloading: "https://download.pytorch.org/models/resnet50-11ad3fa6.pth" to /Users/cml/.cache/torch/hub/checkpoints/resnet50-11ad3fa6.pth
+  [92mPASS[0m  Forward pass on cpu (4.7s)
+
+[1m  Language Model (gpt2_small)[0m
+  [92mPASS[0m  Forward pass + feature extraction on cpu (dim=768, 27.6s)
+
+[1m============================================================[0m
+[1m  Tier 3: End-to-End Benchmarks[0m
+[1m============================================================[0m
+  First run downloads datasets from the cloud.
+  This may take several minutes depending on your connection.
+
+
+[1m  Vision Benchmark (resnet18 + NSDV1 + RSA)[0m
+  [91mFAIL[0m  Vision benchmark: SCIKIT_LEARN_DATA environment variable must be setup for fetching data (export SCIKIT_LEARN_DATA=path/to/download/data)
+
+[1m  Language Benchmark (gpt2_small + LeBel2023 + Ridge)[0m
+  [91mFAIL[0m  Language benchmark: SCIKIT_LEARN_DATA environment variable must be setup for fetching data (export SCIKIT_LEARN_DATA=path/to/download/data)
+
+[1m============================================================[0m
+[1m  Validation Summary[0m
+[1m============================================================[0m
+  [92mPASS[0m  Tier 1: Environment & Dependencies  (30s)
+  [92mPASS[0m  Tier 2: Model Loading & Inference  (37s)
+  [91mFAIL[0m  Tier 3: End-to-End Benchmarks  (1s)
+
+  [91m[1mSome checks failed. Fix the issues above before starting.[0m
+[1m============================================================[0m
+
+
