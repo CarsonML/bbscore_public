@@ -90,7 +90,7 @@ def main():
         inputs = inputs.to(model.device)
 
         # Generate text tokens
-        generated_ids = model.generate(**inputs, max_new_tokens=150)
+        generated_ids = model.generate(**inputs, max_new_tokens=750)
         
         # Trim input tokens from output tokens
         generated_ids_trimmed = [
