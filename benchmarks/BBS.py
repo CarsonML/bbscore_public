@@ -196,6 +196,49 @@ class BenchmarkScore:
             ceiling = None
             stratify_labels_train = None
 
+        feature_train_rows = (
+            features_train.shape[0]
+            if hasattr(features_train, "shape") and len(features_train.shape) > 0
+            else None
+        )
+        target_train_rows = (
+            target_train.shape[0]
+            if hasattr(target_train, "shape") and len(target_train.shape) > 0
+            else None
+        )
+        if (
+            feature_train_rows is not None
+            and target_train_rows is not None
+            and feature_train_rows != target_train_rows
+        ):
+            raise ValueError(
+                f"Sample count mismatch before metric computation for layer '{current_layer_name}': "
+                f"features_train has shape {getattr(features_train, 'shape', None)}, "
+                f"but target_train has shape {getattr(target_train, 'shape', None)}."
+            )
+
+        if features_test is not None and target_test is not None:
+            feature_test_rows = (
+                features_test.shape[0]
+                if hasattr(features_test, "shape") and len(features_test.shape) > 0
+                else None
+            )
+            target_test_rows = (
+                target_test.shape[0]
+                if hasattr(target_test, "shape") and len(target_test.shape) > 0
+                else None
+            )
+            if (
+                feature_test_rows is not None
+                and target_test_rows is not None
+                and feature_test_rows != target_test_rows
+            ):
+                raise ValueError(
+                    f"Sample count mismatch before metric computation for layer '{current_layer_name}': "
+                    f"features_test has shape {getattr(features_test, 'shape', None)}, "
+                    f"but target_test has shape {getattr(target_test, 'shape', None)}."
+                )
+
         results = {}
         n_metrics = len(self.metrics)
         for name, metric_class in self.metrics.items():

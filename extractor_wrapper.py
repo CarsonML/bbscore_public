@@ -286,8 +286,52 @@ class FeatureExtractor:
 
         all_labels = []
 
+        def infer_batch_size(batch_inputs):
+            if isinstance(batch_inputs, dict):
+                for value in batch_inputs.values():
+                    if isinstance(value, list):
+                        return len(value)
+                    if isinstance(value, torch.Tensor) and value.ndim > 0:
+                        return value.shape[0]
+                return None
+            if hasattr(batch_inputs, "shape") and len(batch_inputs.shape) > 0:
+                return batch_inputs.shape[0]
+            return None
+
+        def summarize_batch_inputs(batch_inputs):
+            if isinstance(batch_inputs, dict):
+                summary = {}
+                for key, value in batch_inputs.items():
+                    if isinstance(value, list):
+                        if value and isinstance(value[0], torch.Tensor):
+                            summary[key] = {
+                                "kind": "list[tensor]",
+                                "len": len(value),
+                                "shapes": [tuple(v.shape) for v in value[:3]],
+                            }
+                        else:
+                            summary[key] = {
+                                "kind": "list",
+                                "len": len(value),
+                            }
+                    elif isinstance(value, torch.Tensor):
+                        summary[key] = {
+                            "kind": "tensor",
+                            "shape": tuple(value.shape),
+                        }
+                    else:
+                        summary[key] = {
+                            "kind": type(value).__name__,
+                        }
+                return summary
+            if isinstance(batch_inputs, torch.Tensor):
+                return {"kind": "tensor", "shape": tuple(batch_inputs.shape)}
+            return {"kind": type(batch_inputs).__name__}
+
         def process_batch(inputs, labels=None):
             B, T = None, None
+            expected_batch_size = infer_batch_size(inputs)
+            batch_input_summary = summarize_batch_inputs(inputs)
 
             # 1) Handle static, temporal input reshaping
             if self.static and hasattr(inputs, 'shape') and len(inputs.shape) >= 5:
@@ -342,11 +386,29 @@ class FeatureExtractor:
 
                 # Postprocess (Flatten spatial dims usually)
                 if self.postprocess_fn is not None:
+                    postprocess_owner = getattr(self.postprocess_fn, "__self__", None)
+                    if postprocess_owner is not None:
+                        postprocess_owner._bbscore_expected_batch_size = expected_batch_size
+                        postprocess_owner._bbscore_current_layer_name = l_name
                     features_val = self.postprocess_fn(features_val)
 
                 if not isinstance(features_val, torch.Tensor):
                     features_val = torch.from_numpy(
                         features_val).to(self.device)
+
+                if (
+                    self.static
+                    and expected_batch_size is not None
+                    and features_val.ndim > 0
+                    and features_val.shape[0] != expected_batch_size
+                ):
+                    raise RuntimeError(
+                        f"Feature extraction produced the wrong number of samples for layer '{l_name}': "
+                        f"expected {expected_batch_size} rows from the current batch, "
+                        f"but got feature shape {tuple(features_val.shape)} after postprocessing. "
+                        f"Raw hook output shape was {tuple(raw_list[0].shape) if raw_list else None}. "
+                        f"Batch inputs summary: {batch_input_summary}"
+                    )
 
                 batch_layer_features[l_name] = features_val
 

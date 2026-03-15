@@ -43,6 +43,12 @@ def run_kfold_cv(
     stratify_on: Optional[np.ndarray] = None,
 ) -> Dict[str, np.ndarray]:
 
+    if X.shape[0] != y.shape[0]:
+        raise ValueError(
+            f"K-fold input sample mismatch: X has {X.shape[0]} rows with shape {X.shape}, "
+            f"but y has {y.shape[0]} rows with shape {y.shape}."
+        )
+
     if stratify_on is not None:
         if len(stratify_on) != X.shape[0]:
             raise ValueError(
@@ -102,6 +108,12 @@ def run_kfold_cv_chunked(
     random_state: int = 42,
     stratify_on: Optional[np.ndarray] = None,
 ) -> Dict[str, np.ndarray]:
+
+    if X.shape[0] != y.shape[0]:
+        raise ValueError(
+            f"K-fold input sample mismatch: X has {X.shape[0]} rows with shape {X.shape}, "
+            f"but y has {y.shape[0]} rows with shape {y.shape}."
+        )
 
     if stratify_on is not None:
         if len(stratify_on) != X.shape[0]:
