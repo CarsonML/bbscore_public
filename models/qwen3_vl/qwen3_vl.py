@@ -126,9 +126,54 @@ class Qwen3VL:
         is_tensor = isinstance(features_np, torch.Tensor)
         expected_batch_size = getattr(self, "_bbscore_expected_batch_size", None)
         current_layer_name = getattr(self, "_bbscore_current_layer_name", "unknown")
+        patch_counts = None
+        if hasattr(self, '_last_image_grid_thw') and self._last_image_grid_thw is not None:
+            patch_counts = self._last_image_grid_thw.prod(dim=1).tolist()
+
+        def pool_patch_major_activations(feats, counts):
+            if is_tensor:
+                splits = torch.split(feats, counts, dim=0)
+                return torch.stack(
+                    [chunk.mean(dim=tuple(range(chunk.ndim - 1))) for chunk in splits],
+                    dim=0,
+                )
+            indices = np.cumsum(counts)[:-1]
+            splits = np.split(feats, indices, axis=0)
+            return np.stack(
+                [chunk.mean(axis=tuple(range(chunk.ndim - 1))) for chunk in splits],
+                axis=0,
+            )
         
-        # If the output is natively 3D [Batch, Sequence, Dim]
+        # If the output is truly batch-major [Batch, Sequence, Dim], pool the sequence axis.
+        # Some Qwen3-VL vision blocks instead return patch-major tensors such as
+        # [total_patches, 1, hidden], which must be reconstructed via image_grid_thw.
         if features_np.ndim == 3:
+            if expected_batch_size is not None and features_np.shape[0] == expected_batch_size:
+                if is_tensor:
+                    pooled = features_np.mean(dim=1)
+                else:
+                    pooled = np.mean(features_np, axis=1)
+                return pooled
+
+            if patch_counts is not None:
+                print(f"[DEBUG qwen3_vl] 3D tensor shape: {tuple(features_np.shape)}")
+                print(f"[DEBUG qwen3_vl] Intercepted image_grid_thw expects batch size {len(patch_counts)}.")
+                if expected_batch_size is not None:
+                    print(f"[DEBUG qwen3_vl] BBScore batch size was {expected_batch_size}.")
+                print(f"[DEBUG qwen3_vl] Patch breakdown per image: {patch_counts}")
+
+                if sum(patch_counts) == features_np.shape[0]:
+                    pooled = pool_patch_major_activations(features_np, patch_counts)
+                    if expected_batch_size is not None and pooled.shape[0] != expected_batch_size:
+                        raise ValueError(
+                            f"[qwen3_vl] Layer '{current_layer_name}' reconstructed {pooled.shape[0]} pooled rows "
+                            f"from a patch-major 3D tensor with shape {tuple(features_np.shape)} for a BBScore batch "
+                            f"of {expected_batch_size} samples. grid_thw rows={len(patch_counts)}, "
+                            f"patch_counts={patch_counts}."
+                        )
+                    print(f"[DEBUG qwen3_vl] SUCCESS! Returning {pooled.shape[0]} pooled vectors from 3D patch-major activations.")
+                    return pooled
+
             # Average pool across the sequence dimension (dim 1)
             if is_tensor:
                 pooled = features_np.mean(dim=1)
@@ -150,10 +195,7 @@ class Qwen3VL:
             # Qwen3 concatenates image patches across the entire batch natively.
             # E.g. 2 images with 256 and 676 patches become [932, 1536].
             # We must use the intercepted grid to split them properly.
-            if hasattr(self, '_last_image_grid_thw') and self._last_image_grid_thw is not None:
-                # get the number of patches for each image in the batch (t * h * w)
-                patch_counts = self._last_image_grid_thw.prod(dim=1).tolist()
-                
+            if patch_counts is not None:
                 print(f"[DEBUG qwen3_vl] postprocess_fn received {features_np.shape[0]} total flattened patches.")
                 print(f"[DEBUG qwen3_vl] Intercepted image_grid_thw expects batch size {len(patch_counts)}.")
                 if expected_batch_size is not None:
@@ -161,33 +203,17 @@ class Qwen3VL:
                 print(f"[DEBUG qwen3_vl] Patch breakdown per image: {patch_counts}")
                 
                 if sum(patch_counts) == features_np.shape[0]:
-                    if is_tensor:
-                        splits = torch.split(features_np, patch_counts, dim=0)
-                        pooled = torch.stack([s.mean(dim=0) for s in splits], dim=0)
-                        if expected_batch_size is not None and pooled.shape[0] != expected_batch_size:
-                            raise ValueError(
-                                f"[qwen3_vl] Layer '{current_layer_name}' reconstructed {pooled.shape[0]} pooled rows "
-                                f"from image_grid_thw for a BBScore batch of {expected_batch_size} samples. "
-                                f"grid_thw rows={len(patch_counts)}, patch_counts={patch_counts}, "
-                                f"raw feature shape={tuple(features_np.shape)}. "
-                                f"This suggests one or more inputs expanded into multiple image grids/windows."
-                            )
-                        print(f"[DEBUG qwen3_vl] SUCCESS! Returning {pooled.shape[0]} pooled vectors to BBScore.")
-                        return pooled
-                    else:
-                        indices = np.cumsum(patch_counts)[:-1]
-                        splits = np.split(features_np, indices, axis=0)
-                        pooled = np.stack([s.mean(axis=0) for s in splits], axis=0)
-                        if expected_batch_size is not None and pooled.shape[0] != expected_batch_size:
-                            raise ValueError(
-                                f"[qwen3_vl] Layer '{current_layer_name}' reconstructed {pooled.shape[0]} pooled rows "
-                                f"from image_grid_thw for a BBScore batch of {expected_batch_size} samples. "
-                                f"grid_thw rows={len(patch_counts)}, patch_counts={patch_counts}, "
-                                f"raw feature shape={tuple(features_np.shape)}. "
-                                f"This suggests one or more inputs expanded into multiple image grids/windows."
-                            )
-                        print(f"[DEBUG qwen3_vl] SUCCESS! Returning {pooled.shape[0]} pooled vectors to BBScore.")
-                        return pooled
+                    pooled = pool_patch_major_activations(features_np, patch_counts)
+                    if expected_batch_size is not None and pooled.shape[0] != expected_batch_size:
+                        raise ValueError(
+                            f"[qwen3_vl] Layer '{current_layer_name}' reconstructed {pooled.shape[0]} pooled rows "
+                            f"from image_grid_thw for a BBScore batch of {expected_batch_size} samples. "
+                            f"grid_thw rows={len(patch_counts)}, patch_counts={patch_counts}, "
+                            f"raw feature shape={tuple(features_np.shape)}. "
+                            f"This suggests one or more inputs expanded into multiple image grids/windows."
+                        )
+                    print(f"[DEBUG qwen3_vl] SUCCESS! Returning {pooled.shape[0]} pooled vectors to BBScore.")
+                    return pooled
                 else:
                     print(f"[DEBUG qwen3_vl] WARNING: Grid sum {sum(patch_counts)} != features {features_np.shape[0]}")
 
