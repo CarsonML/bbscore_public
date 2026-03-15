@@ -110,7 +110,23 @@ class Qwen3VL:
         raise ValueError(f"Unknown model identifier: {identifier}.")
 
     def postprocess_fn(self, features_np):
+        """
+        Qwen3-VL Vision blocks output sequences of patches (e.g., [256, 1536] per image instead of [1, 256, 1536]).
+        For downstream linear probing (Ridge), we need a single vector per image.
+        We average pool the sequence dimension to yield [batch_size, feature_dim].
+        """
+        # If the output is natively 3D [Batch, Sequence, Dim]
         if features_np.ndim == 3:
-            batch_size = features_np.shape[0]
-            return features_np.reshape(batch_size, -1)
+            # Average pool across the sequence dimension (dim 1)
+            return np.mean(features_np, axis=1)
+        
+        # If the output is 2D, it could be [Batch, Dim] (good) or [Sequence, Dim] (needs pooling if batch=1)
+        # Qwen3-VL often flattens the batch dimension for image patching.
+        if features_np.ndim == 2:
+            # For BBScore, default extraction passes 1 image at a time natively resulting in [Sequence, Dim]
+            # Average pooling the sequence mapping down to a single 1D feature vector for the image
+            pooled = np.mean(features_np, axis=0)
+            # BBScore extractor expects at least 2D [Batch, Features]
+            return np.expand_dims(pooled, axis=0)
+            
         return features_np
