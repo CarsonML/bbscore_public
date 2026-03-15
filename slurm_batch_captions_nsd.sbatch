@@ -2,8 +2,8 @@
 #SBATCH --job-name=nsd-batch-captions
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
-#SBATCH --mem=50G
-#SBATCH --time=12-00:00:00
+#SBATCH --mem=150G
+#SBATCH --time=12:00:00
 #SBATCH --mail-user=carsonml@stanford.edu
 #SBATCH --mail-type=BEGIN,END,FAIL
 #SBATCH --output=slurm_batch_captions_%j.out

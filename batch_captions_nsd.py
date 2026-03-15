@@ -5,7 +5,6 @@ Each line is written and synced immediately so if the job fails or is killed,
 re-run with --resume to skip already-captioned indices and continue.
 """
 import argparse
-import hashlib
 import json
 import os
 import re
