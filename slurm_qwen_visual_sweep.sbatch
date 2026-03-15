@@ -2,7 +2,7 @@
 #SBATCH --job-name=qwen3-visual-sweep
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
-#SBATCH --mem=250G
+#SBATCH --mem=200G
 #SBATCH --time=12:00:00
 #SBATCH --mail-user=carsonml@stanford.edu
 #SBATCH --mail-type=BEGIN,END,FAIL
