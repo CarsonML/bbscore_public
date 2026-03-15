@@ -25,6 +25,7 @@ PROMPT="${PROMPT:-Describe this image in one sentence.}"
 echo "Repo root: $REPO_ROOT"
 echo "Output dir: $OUTPUT_DIR"
 echo "Prompt: $PROMPT"
+echo "Resume: enabled (re-run this job if it fails or times out)"
 echo "Starting batch NSD captions at $(date)"
 
 python batch_captions_nsd.py \

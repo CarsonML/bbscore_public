@@ -1,6 +1,8 @@
 """
 Batch caption the full NSD stimulus set with Qwen3-VL.
-Saves captions as JSONL (one {"index": int, "caption": str} per line) for resume support.
+Saves captions as JSONL (one {"index": int, "caption": str} per line).
+Each line is written and synced immediately so if the job fails or is killed,
+re-run with --resume to skip already-captioned indices and continue.
 """
 import argparse
 import hashlib
@@ -164,6 +166,7 @@ def main():
             rec = {"index": idx, "caption": caption}
             f.write(json.dumps(rec) + "\n")
             f.flush()
+            os.fsync(f.fileno())  # force kernel to persist so resume doesn't lose last caption on kill
             print(f"  -> {caption[:80]}{'...' if len(caption) > 80 else ''}")
 
     print(f"\nDone. Captions written to {os.path.abspath(out_path)}")
