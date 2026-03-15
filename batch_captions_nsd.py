@@ -21,7 +21,7 @@ STD = torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1)
 
 MODEL_NAME = "Qwen/Qwen3-VL-8B-Instruct"
 DEFAULT_PROMPT = "Describe this image in one sentence."
-MAX_NEW_TOKENS = 150
+MAX_NEW_TOKENS = 750
 
 
 def unnormalize_to_pil(tensor):
