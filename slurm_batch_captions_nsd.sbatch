@@ -21,16 +21,25 @@ fi
 
 OUTPUT_DIR="${OUTPUT_DIR:-$REPO_ROOT/captions/nsd_qwen3vl}"
 PROMPT="${PROMPT:-Describe this image in one sentence.}"
+# Start from scratch by default. To resume after a failure: RESUME=1 sbatch slurm_batch_captions_nsd.sbatch
+RESUME="${RESUME:-0}"
 
 echo "Repo root: $REPO_ROOT"
 echo "Output dir: $OUTPUT_DIR"
 echo "Prompt: $PROMPT"
-echo "Resume: enabled (re-run this job if it fails or times out)"
+echo "Max new tokens: 750"
+echo "Resume: $RESUME (start from scratch). To resume after failure: RESUME=1 sbatch ..."
 echo "Starting batch NSD captions at $(date)"
+
+RESUME_ARGS=""
+if [ "$RESUME" = "1" ]; then
+  RESUME_ARGS="--resume"
+fi
 
 python batch_captions_nsd.py \
   --prompt "$PROMPT" \
   --output_dir "$OUTPUT_DIR" \
-  --resume
+  --max_new_tokens 750 \
+  $RESUME_ARGS
 
 echo "Finished at $(date)"
