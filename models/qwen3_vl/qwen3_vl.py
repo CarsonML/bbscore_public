@@ -119,9 +119,10 @@ class Qwen3VL:
 
     def postprocess_fn(self, features_np):
         """
-        Qwen3-VL Vision blocks output sequences of patches (e.g., [256, 1536] per image instead of [1, 256, 1536]).
-        For downstream linear probing (Ridge), we need a single vector per image.
-        We average pool the sequence dimension to yield [batch_size, feature_dim].
+        Qwen3-VL vision blocks can emit patch-major activations, so we use
+        image_grid_thw to reconstruct a batch-major per-image patch tensor.
+        This keeps patch structure intact, matching the token-preserving style
+        used by other vision transformers in the repo.
         """
         is_tensor = isinstance(features_np, torch.Tensor)
         expected_batch_size = getattr(self, "_bbscore_expected_batch_size", None)
@@ -130,30 +131,36 @@ class Qwen3VL:
         if hasattr(self, '_last_image_grid_thw') and self._last_image_grid_thw is not None:
             patch_counts = self._last_image_grid_thw.prod(dim=1).tolist()
 
-        def pool_patch_major_activations(feats, counts):
+        def stack_patch_major_activations(feats, counts):
+            if len(set(counts)) != 1:
+                raise ValueError(
+                    f"[qwen3_vl] Layer '{current_layer_name}' produced variable patch counts {counts}. "
+                    "BBScore currently expects a fixed patch count so batches can be stacked across the dataset."
+                )
+            patches_per_image = counts[0]
             if is_tensor:
                 splits = torch.split(feats, counts, dim=0)
-                return torch.stack(
-                    [chunk.mean(dim=tuple(range(chunk.ndim - 1))) for chunk in splits],
-                    dim=0,
-                )
+                normalized = []
+                for chunk in splits:
+                    if chunk.ndim == 3 and chunk.shape[1] == 1:
+                        chunk = chunk[:, 0, :]
+                    normalized.append(chunk.reshape(patches_per_image, -1))
+                return torch.stack(normalized, dim=0)
             indices = np.cumsum(counts)[:-1]
             splits = np.split(feats, indices, axis=0)
-            return np.stack(
-                [chunk.mean(axis=tuple(range(chunk.ndim - 1))) for chunk in splits],
-                axis=0,
-            )
+            normalized = []
+            for chunk in splits:
+                if chunk.ndim == 3 and chunk.shape[1] == 1:
+                    chunk = chunk[:, 0, :]
+                normalized.append(chunk.reshape(patches_per_image, -1))
+            return np.stack(normalized, axis=0)
         
-        # If the output is truly batch-major [Batch, Sequence, Dim], pool the sequence axis.
+        # If the output is truly batch-major [Batch, Sequence, Dim], keep it as-is.
         # Some Qwen3-VL vision blocks instead return patch-major tensors such as
         # [total_patches, 1, hidden], which must be reconstructed via image_grid_thw.
         if features_np.ndim == 3:
             if expected_batch_size is not None and features_np.shape[0] == expected_batch_size:
-                if is_tensor:
-                    pooled = features_np.mean(dim=1)
-                else:
-                    pooled = np.mean(features_np, axis=1)
-                return pooled
+                return features_np
 
             if patch_counts is not None:
                 print(f"[DEBUG qwen3_vl] 3D tensor shape: {tuple(features_np.shape)}")
@@ -163,29 +170,23 @@ class Qwen3VL:
                 print(f"[DEBUG qwen3_vl] Patch breakdown per image: {patch_counts}")
 
                 if sum(patch_counts) == features_np.shape[0]:
-                    pooled = pool_patch_major_activations(features_np, patch_counts)
-                    if expected_batch_size is not None and pooled.shape[0] != expected_batch_size:
+                    restored = stack_patch_major_activations(features_np, patch_counts)
+                    if expected_batch_size is not None and restored.shape[0] != expected_batch_size:
                         raise ValueError(
-                            f"[qwen3_vl] Layer '{current_layer_name}' reconstructed {pooled.shape[0]} pooled rows "
+                            f"[qwen3_vl] Layer '{current_layer_name}' reconstructed {restored.shape[0]} image rows "
                             f"from a patch-major 3D tensor with shape {tuple(features_np.shape)} for a BBScore batch "
                             f"of {expected_batch_size} samples. grid_thw rows={len(patch_counts)}, "
                             f"patch_counts={patch_counts}."
                         )
-                    print(f"[DEBUG qwen3_vl] SUCCESS! Returning {pooled.shape[0]} pooled vectors from 3D patch-major activations.")
-                    return pooled
+                    print(f"[DEBUG qwen3_vl] SUCCESS! Returning {restored.shape[0]} per-image patch tensors from 3D activations.")
+                    return restored
 
-            # Average pool across the sequence dimension (dim 1)
-            if is_tensor:
-                pooled = features_np.mean(dim=1)
-            else:
-                pooled = np.mean(features_np, axis=1)
-            if expected_batch_size is not None and pooled.shape[0] != expected_batch_size:
+            if expected_batch_size is not None:
                 raise ValueError(
-                    f"[qwen3_vl] Layer '{current_layer_name}' produced {pooled.shape[0]} pooled rows "
-                    f"from a 3D tensor with shape {tuple(features_np.shape)}, but the BBScore batch "
-                    f"contained {expected_batch_size} samples."
+                    f"[qwen3_vl] Layer '{current_layer_name}' produced a 3D tensor with shape {tuple(features_np.shape)}, "
+                    f"but BBScore expected {expected_batch_size} samples and no valid patch reconstruction path matched."
                 )
-            return pooled
+            return features_np
         
         # If the output is 2D, it could be [Batch, Dim] (good) or [Sequence, Dim] (needs pooling if batch=1)
         # Qwen3-VL often flattens the batch dimension for image patching.
@@ -203,34 +204,34 @@ class Qwen3VL:
                 print(f"[DEBUG qwen3_vl] Patch breakdown per image: {patch_counts}")
                 
                 if sum(patch_counts) == features_np.shape[0]:
-                    pooled = pool_patch_major_activations(features_np, patch_counts)
-                    if expected_batch_size is not None and pooled.shape[0] != expected_batch_size:
+                    restored = stack_patch_major_activations(features_np, patch_counts)
+                    if expected_batch_size is not None and restored.shape[0] != expected_batch_size:
                         raise ValueError(
-                            f"[qwen3_vl] Layer '{current_layer_name}' reconstructed {pooled.shape[0]} pooled rows "
+                            f"[qwen3_vl] Layer '{current_layer_name}' reconstructed {restored.shape[0]} image rows "
                             f"from image_grid_thw for a BBScore batch of {expected_batch_size} samples. "
                             f"grid_thw rows={len(patch_counts)}, patch_counts={patch_counts}, "
                             f"raw feature shape={tuple(features_np.shape)}. "
                             f"This suggests one or more inputs expanded into multiple image grids/windows."
                         )
-                    print(f"[DEBUG qwen3_vl] SUCCESS! Returning {pooled.shape[0]} pooled vectors to BBScore.")
-                    return pooled
+                    print(f"[DEBUG qwen3_vl] SUCCESS! Returning {restored.shape[0]} per-image patch tensors to BBScore.")
+                    return restored
                 else:
                     print(f"[DEBUG qwen3_vl] WARNING: Grid sum {sum(patch_counts)} != features {features_np.shape[0]}")
 
-            # Average pooling the sequence mapping down to a single 1D feature vector for the image
+            # For a single image without grid metadata, keep the patch sequence intact.
             if expected_batch_size is not None and expected_batch_size != 1:
                 raise ValueError(
-                    f"[qwen3_vl] Layer '{current_layer_name}' fell back to single-vector pooling for a 2D tensor "
+                    f"[qwen3_vl] Layer '{current_layer_name}' fell back to a single-image patch tensor for a 2D tensor "
                     f"with shape {tuple(features_np.shape)}, but the BBScore batch size was {expected_batch_size}. "
                     f"Missing or incompatible image_grid_thw would collapse multiple samples into one row."
                 )
             if is_tensor:
-                pooled = features_np.mean(dim=0).unsqueeze(0)
-                print(f"[DEBUG qwen3_vl] Fallback executed. Returning single vector.")
-                return pooled
+                restored = features_np.unsqueeze(0)
+                print(f"[DEBUG qwen3_vl] Fallback executed. Returning single-image patch tensor.")
+                return restored
             else:
-                pooled = np.expand_dims(np.mean(features_np, axis=0), axis=0)
-                print(f"[DEBUG qwen3_vl] Fallback executed. Returning single vector.")
-                return pooled
+                restored = np.expand_dims(features_np, axis=0)
+                print(f"[DEBUG qwen3_vl] Fallback executed. Returning single-image patch tensor.")
+                return restored
             
         return features_np
