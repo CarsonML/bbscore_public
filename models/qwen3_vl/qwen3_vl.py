@@ -104,6 +104,14 @@ class Qwen3VL:
                     device_map="auto"
                 )
                 
+                # Intercept the forward pass to save image_grid_thw for the postprocess_fn
+                original_forward = model.forward
+                def forward_with_catch(*args, **kwargs):
+                    if "image_grid_thw" in kwargs:
+                        self._last_image_grid_thw = kwargs["image_grid_thw"]
+                    return original_forward(*args, **kwargs)
+                model.forward = forward_with_catch
+                
                 self.processor = AutoProcessor.from_pretrained(model_name)
                 return model
 
@@ -127,6 +135,24 @@ class Qwen3VL:
         # If the output is 2D, it could be [Batch, Dim] (good) or [Sequence, Dim] (needs pooling if batch=1)
         # Qwen3-VL often flattens the batch dimension for image patching.
         if features_np.ndim == 2:
+            
+            # --- BATCH GRID RECONSTRUCTION ---
+            # Qwen3 concatenates image patches across the entire batch natively.
+            # E.g. 2 images with 256 and 676 patches become [932, 1536].
+            # We must use the intercepted grid to split them properly.
+            if hasattr(self, '_last_image_grid_thw') and self._last_image_grid_thw is not None:
+                # get the number of patches for each image in the batch (t * h * w)
+                patch_counts = self._last_image_grid_thw.prod(dim=1).tolist()
+                
+                if sum(patch_counts) == features_np.shape[0]:
+                    if is_tensor:
+                        splits = torch.split(features_np, patch_counts, dim=0)
+                        return torch.stack([s.mean(dim=0) for s in splits], dim=0)
+                    else:
+                        indices = np.cumsum(patch_counts)[:-1]
+                        splits = np.split(features_np, indices, axis=0)
+                        return np.stack([s.mean(axis=0) for s in splits], axis=0)
+
             # Average pooling the sequence mapping down to a single 1D feature vector for the image
             if is_tensor:
                 pooled = features_np.mean(dim=0)
