@@ -144,21 +144,33 @@ class Qwen3VL:
                 # get the number of patches for each image in the batch (t * h * w)
                 patch_counts = self._last_image_grid_thw.prod(dim=1).tolist()
                 
+                print(f"[DEBUG qwen3_vl] postprocess_fn received {features_np.shape[0]} total flattened patches.")
+                print(f"[DEBUG qwen3_vl] Intercepted image_grid_thw expects batch size {len(patch_counts)}.")
+                print(f"[DEBUG qwen3_vl] Patch breakdown per image: {patch_counts}")
+                
                 if sum(patch_counts) == features_np.shape[0]:
                     if is_tensor:
                         splits = torch.split(features_np, patch_counts, dim=0)
-                        return torch.stack([s.mean(dim=0) for s in splits], dim=0)
+                        pooled = torch.stack([s.mean(dim=0) for s in splits], dim=0)
+                        print(f"[DEBUG qwen3_vl] SUCCESS! Returning {pooled.shape[0]} pooled vectors to BBScore.")
+                        return pooled
                     else:
                         indices = np.cumsum(patch_counts)[:-1]
                         splits = np.split(features_np, indices, axis=0)
-                        return np.stack([s.mean(axis=0) for s in splits], axis=0)
+                        pooled = np.stack([s.mean(axis=0) for s in splits], axis=0)
+                        print(f"[DEBUG qwen3_vl] SUCCESS! Returning {pooled.shape[0]} pooled vectors to BBScore.")
+                        return pooled
+                else:
+                    print(f"[DEBUG qwen3_vl] WARNING: Grid sum {sum(patch_counts)} != features {features_np.shape[0]}")
 
             # Average pooling the sequence mapping down to a single 1D feature vector for the image
             if is_tensor:
-                pooled = features_np.mean(dim=0)
-                return pooled.unsqueeze(0)
+                pooled = features_np.mean(dim=0).unsqueeze(0)
+                print(f"[DEBUG qwen3_vl] Fallback executed. Returning single vector.")
+                return pooled
             else:
-                pooled = np.mean(features_np, axis=0)
-                return np.expand_dims(pooled, axis=0)
+                pooled = np.expand_dims(np.mean(features_np, axis=0), axis=0)
+                print(f"[DEBUG qwen3_vl] Fallback executed. Returning single vector.")
+                return pooled
             
         return features_np
