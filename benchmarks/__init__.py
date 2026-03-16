@@ -1,10 +1,11 @@
 BENCHMARK_REGISTRY = {}
 
-# Import Benchmark to trigger registrations
+# Import Benchmark modules to trigger registrations.
 # Imports are wrapped in try/except so that a missing optional dependency
 # (e.g. decord on Apple Silicon) only disables the affected benchmarks
 # rather than crashing the entire registry.
-from benchmarks.NSD import NSDSharedBenchmark
+from benchmarks.NSD import NSDSharedBenchmark  # image-based NSD benchmarks
+from benchmarks.NSD import NSDSharedCaptionBenchmark  # caption/text-based NSD benchmarks
 
 try:
     from benchmarks.BMD import BMDBenchmark
