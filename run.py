@@ -1,11 +1,82 @@
 import argparse
 import os
 import inspect
-from typing import List, Union
+from typing import List, Optional, Union
 
 from benchmarks import BENCHMARK_REGISTRY
+from benchmarks.BBS import JointBenchmarkScore
 from metrics import METRICS, validate_metric_benchmark, get_compatible_metrics
 from models import MODEL_REGISTRY
+from data.NSDShared import (
+    NSDStimulusSet,
+    NSDAssemblyV1,
+    NSDAssemblyV1d,
+    NSDAssemblyV1v,
+    NSDAssemblyV2,
+    NSDAssemblyV2d,
+    NSDAssemblyV2v,
+    NSDAssemblyV3,
+    NSDAssemblyV3d,
+    NSDAssemblyV3v,
+    NSDAssemblyV4,
+    NSDAssemblyLateral,
+    NSDAssemblyVentral,
+    NSDAssemblyParietal,
+    NSDAssemblyMidLateral,
+    NSDAssemblyMidVentral,
+    NSDAssemblyMidParietal,
+    NSDAssemblyHighLateral,
+    NSDAssemblyHighVentral,
+    NSDAssemblyHighParietal,
+)
+from data.NSDCaptions import NSDCaptionStimulusSet
+
+
+NSD_JOINT_ASSEMBLY_MAP = {
+    "NSDV1Shared": NSDAssemblyV1,
+    "NSDV1dShared": NSDAssemblyV1d,
+    "NSDV1vShared": NSDAssemblyV1v,
+    "NSDV2Shared": NSDAssemblyV2,
+    "NSDV2dShared": NSDAssemblyV2d,
+    "NSDV2vShared": NSDAssemblyV2v,
+    "NSDV3Shared": NSDAssemblyV3,
+    "NSDV3dShared": NSDAssemblyV3d,
+    "NSDV3vShared": NSDAssemblyV3v,
+    "NSDV4Shared": NSDAssemblyV4,
+    "NSDLateralShared": NSDAssemblyLateral,
+    "NSDVentralShared": NSDAssemblyVentral,
+    "NSDParietalShared": NSDAssemblyParietal,
+    "NSDMidLateralShared": NSDAssemblyMidLateral,
+    "NSDMidVentralShared": NSDAssemblyMidVentral,
+    "NSDMidParietalShared": NSDAssemblyMidParietal,
+    "NSDHighLateralShared": NSDAssemblyHighLateral,
+    "NSDHighVentralShared": NSDAssemblyHighVentral,
+    "NSDHighParietalShared": NSDAssemblyHighParietal,
+    "NSDV1CaptionShared": NSDAssemblyV1,
+    "NSDV1dCaptionShared": NSDAssemblyV1d,
+    "NSDV1vCaptionShared": NSDAssemblyV1v,
+    "NSDV2CaptionShared": NSDAssemblyV2,
+    "NSDV2dCaptionShared": NSDAssemblyV2d,
+    "NSDV2vCaptionShared": NSDAssemblyV2v,
+    "NSDV3CaptionShared": NSDAssemblyV3,
+    "NSDV3dCaptionShared": NSDAssemblyV3d,
+    "NSDV3vCaptionShared": NSDAssemblyV3v,
+    "NSDV4CaptionShared": NSDAssemblyV4,
+    "NSDLateralCaptionShared": NSDAssemblyLateral,
+    "NSDVentralCaptionShared": NSDAssemblyVentral,
+    "NSDParietalCaptionShared": NSDAssemblyParietal,
+    "NSDMidLateralCaptionShared": NSDAssemblyMidLateral,
+    "NSDMidVentralCaptionShared": NSDAssemblyMidVentral,
+    "NSDMidParietalCaptionShared": NSDAssemblyMidParietal,
+    "NSDHighLateralCaptionShared": NSDAssemblyHighLateral,
+    "NSDHighVentralCaptionShared": NSDAssemblyHighVentral,
+    "NSDHighParietalCaptionShared": NSDAssemblyHighParietal,
+}
+
+JOINT_STIMULUS_CLASS_MAP = {
+    "image": NSDStimulusSet,
+    "caption": NSDCaptionStimulusSet,
+}
 
 
 def test_pipeline(
@@ -17,17 +88,27 @@ def test_pipeline(
     debug: bool,
     use_ridge_smart_memory: bool,
     random_projection: str,
-    aggregation_mode: str
+    aggregation_mode: str,
+    joint_model_identifiers: Optional[List[str]] = None,
+    joint_layer_names: Optional[List[str]] = None,
+    joint_stimulus_modes: Optional[List[str]] = None,
 ):
     """
     Tests the benchmark pipeline with a given model, layer(s), and benchmark.
     """
-    layer_str = layer_name if isinstance(
-        layer_name, str) else ", ".join(layer_name)
-    print(
-        f"Testing with model: {model_identifier}, layer(s): [{layer_str}], "
-        f"benchmark: {benchmark_identifier}, aggregation: {aggregation_mode}"
-    )
+    if joint_model_identifiers:
+        print(
+            f"Testing joint run with models: {joint_model_identifiers}, "
+            f"layers: {joint_layer_names}, stimuli: {joint_stimulus_modes}, "
+            f"benchmark: {benchmark_identifier}, aggregation: {aggregation_mode}"
+        )
+    else:
+        layer_str = layer_name if isinstance(
+            layer_name, str) else ", ".join(layer_name)
+        print(
+            f"Testing with model: {model_identifier}, layer(s): [{layer_str}], "
+            f"benchmark: {benchmark_identifier}, aggregation: {aggregation_mode}"
+        )
 
     # 1. Extract Benchmark Class from the Registry
     if benchmark_identifier not in BENCHMARK_REGISTRY:
@@ -65,7 +146,43 @@ def test_pipeline(
     print(
         f"Instantiating {benchmark_identifier} (Type: {'Online' if is_online else 'Offline'})...")
 
-    if model_identifier != 'None':
+    if joint_model_identifiers:
+        if benchmark_identifier not in NSD_JOINT_ASSEMBLY_MAP:
+            raise ValueError(
+                "Joint run.py mode currently supports NSD shared and caption benchmarks only. "
+                f"Unsupported benchmark: {benchmark_identifier}"
+            )
+        if joint_layer_names is None or len(joint_model_identifiers) != len(joint_layer_names):
+            raise ValueError(
+                "joint_layer_names must be provided and aligned one-to-one with joint_model_identifiers."
+            )
+        if joint_stimulus_modes is None:
+            default_mode = "caption" if "CaptionShared" in benchmark_identifier else "image"
+            joint_stimulus_modes = [default_mode] * len(joint_model_identifiers)
+        if len(joint_stimulus_modes) != len(joint_model_identifiers):
+            raise ValueError(
+                "joint_stimulus_modes must be aligned one-to-one with joint_model_identifiers."
+            )
+        stimulus_classes = []
+        for mode in joint_stimulus_modes:
+            if mode not in JOINT_STIMULUS_CLASS_MAP:
+                raise ValueError(
+                    f"Unsupported joint stimulus mode '{mode}'. "
+                    f"Supported modes: {sorted(JOINT_STIMULUS_CLASS_MAP.keys())}"
+                )
+            stimulus_classes.append(JOINT_STIMULUS_CLASS_MAP[mode])
+
+        pipeline = JointBenchmarkScore(
+            stimulus_train_class=stimulus_classes,
+            model_identifiers=joint_model_identifiers,
+            layer_names_per_model=joint_layer_names,
+            assembly_class=NSD_JOINT_ASSEMBLY_MAP[benchmark_identifier],
+            batch_size=batch_size,
+            num_workers=0,
+            debug=debug,
+            random_projection=random_projection,
+        )
+    elif model_identifier != 'None':
         pipeline = benchmark_class(
             model_identifier,
             layer_arg,
@@ -158,8 +275,29 @@ if __name__ == "__main__":
         "--layer",
         type=str,
         nargs="+",
-        required=True,
+        required=False,
         help="Layer name(s) to extract features from (e.g., 'encoder.layer.11' 'encoder.layer.10')."
+    )
+    parser.add_argument(
+        "--joint-models",
+        type=str,
+        nargs="+",
+        default=None,
+        help="Model identifiers for a joint run. Use with --joint-layers and optional --joint-stimuli.",
+    )
+    parser.add_argument(
+        "--joint-layers",
+        type=str,
+        nargs="+",
+        default=None,
+        help="One layer name per joint model for a joint run.",
+    )
+    parser.add_argument(
+        "--joint-stimuli",
+        type=str,
+        nargs="+",
+        default=None,
+        help="Stimulus modality per joint model (currently: image or caption).",
     )
     parser.add_argument(
         "--benchmark",
@@ -207,6 +345,16 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    if args.joint_models:
+        if args.joint_layers is None:
+            parser.error("--joint-layers is required when --joint-models is used.")
+        if len(args.joint_models) != len(args.joint_layers):
+            parser.error("--joint-models and --joint-layers must have the same length.")
+        if args.joint_stimuli is not None and len(args.joint_stimuli) != len(args.joint_models):
+            parser.error("--joint-stimuli must have the same length as --joint-models.")
+    elif args.layer is None:
+        parser.error("--layer is required unless --joint-models is used.")
+
     # Normalize layer argument if single string passed despite nargs
     layers = args.layer
     if isinstance(layers, list) and len(layers) == 1:
@@ -223,5 +371,8 @@ if __name__ == "__main__":
         debug=args.debug,
         use_ridge_smart_memory=args.use_ridge_smart_memory,
         random_projection=args.random_projection,
-        aggregation_mode=args.aggregation_mode
+        aggregation_mode=args.aggregation_mode,
+        joint_model_identifiers=args.joint_models,
+        joint_layer_names=args.joint_layers,
+        joint_stimulus_modes=args.joint_stimuli,
     )

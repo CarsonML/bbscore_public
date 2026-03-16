@@ -442,6 +442,270 @@ class BenchmarkScore:
             return all_results
 
 
+class JointBenchmarkScore(BenchmarkScore):
+    """
+    Benchmark that builds a joint feature space from multiple models.
+
+    It extracts features from each model for the same stimuli, selects
+    the requested layer per model (currently assumes one layer per
+    model), concatenates the resulting feature matrices along the
+    feature dimension, and then calls the standard metric machinery
+    once on this joint feature matrix.
+    """
+
+    def __init__(
+        self,
+        stimulus_train_class,
+        model_identifiers: List[str],
+        layer_names_per_model: List[Union[str, List[str]]],
+        stimulus_test_class=None,
+        assembly_class=None,
+        assembly_train_kwargs=None,
+        assembly_test_kwargs=None,
+        batch_size=32,
+        num_workers=4,
+        task: str = "neural",
+        save_features: bool = False,
+        debug: bool = False,
+        safety_factor: float = 0.8,
+        random_projection=None,
+    ):
+        if not isinstance(model_identifiers, (list, tuple)) or len(model_identifiers) < 2:
+            raise ValueError(
+                "JointBenchmarkScore expects at least two model_identifiers."
+            )
+        if len(model_identifiers) != len(layer_names_per_model):
+            raise ValueError(
+                "layer_names_per_model must have the same length as model_identifiers."
+            )
+
+        if isinstance(stimulus_train_class, (list, tuple)):
+            if len(stimulus_train_class) != len(model_identifiers):
+                raise ValueError(
+                    "stimulus_train_class must be a single class or a list aligned with model_identifiers."
+                )
+            stimulus_train_classes = list(stimulus_train_class)
+        else:
+            stimulus_train_classes = [stimulus_train_class] * len(model_identifiers)
+
+        if stimulus_test_class is None:
+            stimulus_test_classes = [None] * len(model_identifiers)
+        elif isinstance(stimulus_test_class, (list, tuple)):
+            if len(stimulus_test_class) != len(model_identifiers):
+                raise ValueError(
+                    "stimulus_test_class must be None, a single class, or a list aligned with model_identifiers."
+                )
+            stimulus_test_classes = list(stimulus_test_class)
+        else:
+            stimulus_test_classes = [stimulus_test_class] * len(model_identifiers)
+
+        first_layers = layer_names_per_model[0]
+        super().__init__(
+            stimulus_train_class=stimulus_train_classes[0],
+            model_identifier=model_identifiers[0],
+            layer_name=first_layers,
+            stimulus_test_class=stimulus_test_classes[0],
+            assembly_class=assembly_class,
+            assembly_train_kwargs=assembly_train_kwargs,
+            assembly_test_kwargs=assembly_test_kwargs,
+            batch_size=batch_size,
+            num_workers=num_workers,
+            task=task,
+            save_features=save_features,
+            debug=debug,
+            safety_factor=safety_factor,
+            random_projection=random_projection,
+        )
+
+        self.joint_model_identifiers: List[str] = list(model_identifiers)
+        self.joint_layer_names: List[List[str]] = []
+        for ln in layer_names_per_model:
+            if isinstance(ln, list):
+                if len(ln) != 1:
+                    raise NotImplementedError(
+                        "JointBenchmarkScore currently supports exactly one layer per model."
+                    )
+                self.joint_layer_names.append(ln)
+            else:
+                self.joint_layer_names.append([ln])
+
+        # Override model_identifier used in filenames to reflect joint setup
+        self.model_identifier = "Joint_" + "_".join(self.joint_model_identifiers)
+
+        # Build feature extractors for all models.
+        self.joint_model_instances = [self.model_instance]
+        self.joint_models = [self.model]
+        self.joint_extractors = [self.extractor]
+        self.joint_stimulus_trains = [self.stimulus_train]
+        self.joint_stimulus_tests = [self.stimulus_test]
+        self.joint_extractors[0].layer_names = self.joint_layer_names[0]
+
+        for midx in range(1, len(self.joint_model_identifiers)):
+            mid = self.joint_model_identifiers[midx]
+            layer_names = self.joint_layer_names[midx]
+
+            model_class, model_id_mapping = get_model_class_and_id(mid)
+            model_instance = model_class()
+            model = model_instance.get_model(model_id_mapping)
+
+            extractor = FeatureExtractor(
+                model,
+                layer_names,
+                postprocess_fn=model_instance.postprocess_fn,
+                batch_size=self.batch_size,
+                num_workers=num_workers,
+                static=model_instance.static,
+                aggregation_mode="none",
+            )
+
+            self.joint_model_instances.append(model_instance)
+            self.joint_models.append(model)
+            self.joint_extractors.append(extractor)
+            self.joint_stimulus_trains.append(
+                stimulus_train_classes[midx](preprocess=model_instance.preprocess_fn)
+            )
+            if stimulus_test_classes[midx] is not None:
+                self.joint_stimulus_tests.append(
+                    stimulus_test_classes[midx](preprocess=model_instance.preprocess_fn)
+                )
+            else:
+                self.joint_stimulus_tests.append(None)
+
+        self.use_ridge_smart_memory = False
+
+    def initialize_rp(self, rp):
+        for extractor in self.joint_extractors:
+            extractor.random_projection = rp
+
+    def initialize_aggregation(self, mode):
+        if mode != "none":
+            raise NotImplementedError(
+                "JointBenchmarkScore currently supports aggregation_mode='none' only."
+            )
+        self.aggregation_mode = mode
+        for extractor in self.joint_extractors:
+            extractor.aggregation_mode = mode
+
+    def run(self):
+        print("Extracting joint features from models:", self.joint_model_identifiers)
+
+        def _flatten_for_joint(features):
+            if features is None:
+                return None
+            if hasattr(features, "ndim") and features.ndim > 2:
+                return features.reshape(features.shape[0], -1)
+            return features
+
+        features_train_per_model = []
+        features_test_per_model = []
+        labels_train_ref = None
+        labels_test_ref = None
+
+        for idx, extractor in enumerate(self.joint_extractors):
+            features_train_raw, labels_train = extractor.extract_features(
+                self.joint_stimulus_trains[idx], 1.0
+            )
+            features_test_raw, labels_test = None, None
+            if self.joint_stimulus_tests[idx] is not None:
+                features_test_raw, labels_test = extractor.extract_features(
+                    self.joint_stimulus_tests[idx], 1.0, self.test_batch_size
+                )
+
+            if labels_train_ref is None:
+                labels_train_ref = labels_train
+            else:
+                if labels_train_ref is not None and labels_train is not None:
+                    if len(labels_train_ref) != len(labels_train):
+                        raise ValueError(
+                            "Label length mismatch across models in JointBenchmarkScore."
+                        )
+
+            if labels_test_ref is None:
+                labels_test_ref = labels_test
+            else:
+                if (
+                    labels_test_ref is not None
+                    and labels_test is not None
+                    and len(labels_test_ref) != len(labels_test)
+                ):
+                    raise ValueError(
+                        "Test label length mismatch across models in JointBenchmarkScore."
+                    )
+
+            layer_key = self.joint_layer_names[idx][0]
+            if isinstance(features_train_raw, dict):
+                if layer_key in features_train_raw:
+                    f_train = features_train_raw[layer_key]
+                elif len(features_train_raw) == 1:
+                    f_train = next(iter(features_train_raw.values()))
+                else:
+                    raise ValueError(
+                        f"features_train_raw keys {list(features_train_raw.keys())} "
+                        f"do not contain requested layer '{layer_key}'."
+                    )
+            else:
+                f_train = features_train_raw
+
+            if features_test_raw is not None:
+                if isinstance(features_test_raw, dict):
+                    if layer_key in features_test_raw:
+                        f_test = features_test_raw[layer_key]
+                    elif len(features_test_raw) == 1:
+                        f_test = next(iter(features_test_raw.values()))
+                    else:
+                        f_test = None
+                else:
+                    f_test = features_test_raw
+            else:
+                f_test = None
+
+            features_train_per_model.append(_flatten_for_joint(f_train))
+            features_test_per_model.append(_flatten_for_joint(f_test))
+
+        features_train_joint = None
+        for f in features_train_per_model:
+            if f is None:
+                continue
+            if features_train_joint is None:
+                features_train_joint = f
+            else:
+                features_train_joint = np.concatenate(
+                    [features_train_joint, f], axis=1
+                )
+
+        features_test_joint = None
+        for f in features_test_per_model:
+            if f is None:
+                continue
+            if features_test_joint is None:
+                features_test_joint = f
+            else:
+                features_test_joint = np.concatenate(
+                    [features_test_joint, f], axis=1
+                )
+
+        if features_train_joint is None:
+            raise RuntimeError(
+                "No joint training features were constructed in JointBenchmarkScore."
+            )
+
+        combined_name = "Joint_" + "_".join(
+            f"{mid}:{self.joint_layer_names[idx][0]}"
+            for idx, mid in enumerate(self.joint_model_identifiers)
+        )
+
+        print(f"Running metrics for Joint features: {combined_name}")
+
+        res, ceil = self._process_single_layer_result(
+            features_train_joint,
+            features_test_joint,
+            labels_train_ref,
+            labels_test_ref,
+            combined_name,
+        )
+        return {"metrics": res, "ceiling": ceil}
+
+
 class AssemblyBenchmarkScorer:
     def __init__(
         self,

@@ -1,7 +1,7 @@
 from .base import BaseMetric
 from .base_online import OnlineMetric
 from .ridge import RidgeMetric, TorchRidgeMetric, Ridge3DChunkedMetric, InverseRidgeChunkedMetric
-from .ridge import RidgeAutoMetric, TorchLassoMetric, TorchElasticMetric
+from .ridge import RidgeAutoMetric, TorchLassoMetric, TorchElasticMetric, JointRidgeMetric
 from .pls import PLSMetric
 from .bidirectional import BidirectionalMappingMetric
 from .one_to_one import OneToOneMappingMetric
@@ -17,6 +17,7 @@ from .physion import OnlinePhysionContactDetection, OnlinePhysionContactPredicti
 
 METRICS = {
     "ridge": RidgeMetric,
+    "joint_ridge": JointRidgeMetric,
     "torch_ridge": TorchRidgeMetric,
     "torch_lasso": TorchLassoMetric,
     "torch_elastic": TorchElasticMetric,
@@ -50,7 +51,7 @@ METRICS = {
 # Groups of metrics by the type of analysis they perform.
 METRIC_GROUPS = {
     "offline_regression": [
-        "ridge", "torch_ridge", "torch_lasso", "torch_elastic",
+        "ridge", "joint_ridge", "torch_ridge", "torch_lasso", "torch_elastic",
         "pls", "temporal_ridge", "inverse_ridge",
     ],
     "offline_similarity": [

@@ -339,6 +339,19 @@ class TorchElasticMetric(RidgeAutoMetric):
         super().__init__(ceiling=ceiling, mode='elastic')
 
 
+class JointRidgeMetric(RidgeMetric):
+    """
+    Joint ridge regression metric.
+
+    This is a thin wrapper around RidgeMetric so that joint-feature
+    evaluations can be addressed by a separate metric key
+    (\"joint_ridge\"). It expects that the caller has already
+    constructed a concatenated feature matrix across models/layers
+    and passes it as `source`.
+    """
+    pass
+
+
 class Ridge3DChunkedMetric(RidgeMetric):
     def __init__(
         self,
