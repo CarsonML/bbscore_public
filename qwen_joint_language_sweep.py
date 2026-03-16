@@ -60,6 +60,10 @@ def summarize_results(
                 payload = pickle.load(handle)
 
             metrics_block = payload.get("metrics", {})
+            if isinstance(metrics_block, list) and metrics_block:
+                metrics_block = metrics_block[-1]
+            if not isinstance(metrics_block, dict):
+                metrics_block = {}
             metric_block = metrics_block.get(metric)
             if metric_block is None:
                 row["status"] = "missing_metric"

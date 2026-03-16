@@ -2,8 +2,8 @@
 #SBATCH --job-name=qwen3-joint-language-sweep
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
-#SBATCH --mem=240G
-#SBATCH --time=18:00:00
+#SBATCH --mem=150G
+#SBATCH --time=4:00:00
 #SBATCH --mail-user=carsonml@stanford.edu
 #SBATCH --mail-type=BEGIN,END,FAIL
 #SBATCH --output=qwen3_joint_language_sweep_%j.out
