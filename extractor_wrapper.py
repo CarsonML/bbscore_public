@@ -233,6 +233,11 @@ class FeatureExtractor:
                 for k, v in inputs.items():
                     if isinstance(v, torch.Tensor):
                         inputs[k] = v.to(self.device)
+                postprocess_owner = getattr(self.postprocess_fn, "__self__", None)
+                if postprocess_owner is not None and "attention_mask" in inputs and isinstance(inputs["attention_mask"], torch.Tensor):
+                    # Expose the current batch attention mask so language-model postprocessing
+                    # can recover the last valid token rather than a padded token.
+                    postprocess_owner._bbscore_last_attention_mask = inputs["attention_mask"]
                 return self.model(**inputs)
             else:
                 if isinstance(inputs, torch.Tensor):

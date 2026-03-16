@@ -166,10 +166,22 @@ class Qwen3VL:
             if not is_tensor:
                 feats = torch.from_numpy(feats)
 
-            # Expect [B, T, D] or [T, D]; always pool over the second-to-last dim.
+            # _process_sequence_features wraps a single hook output in an extra dim,
+            # so language layers often arrive as [B, 1, T, D]. Collapse that first.
+            if feats.ndim == 4 and feats.shape[1] == 1:
+                feats = feats[:, 0]
+
+            attention_mask = getattr(self, "_bbscore_last_attention_mask", None)
+
+            # Expect [B, T, D] or [T, D]. Use attention_mask when available so
+            # per-batch padding does not cause us to read out a padded token.
             if feats.ndim == 3:
-                # [batch, seq, dim] -> take last token along seq dim
-                pooled = feats[:, -1, :]
+                if attention_mask is not None and attention_mask.ndim == 2 and attention_mask.shape[0] == feats.shape[0]:
+                    lengths = attention_mask.sum(dim=1).long().clamp(min=1)
+                    batch_indices = torch.arange(feats.shape[0], device=feats.device)
+                    pooled = feats[batch_indices, lengths - 1, :]
+                else:
+                    pooled = feats[:, -1, :]
             elif feats.ndim == 2:
                 # [seq, dim] or [batch, dim]; if it's [seq, dim] we'll just treat
                 # the last row as the pooled representation.
