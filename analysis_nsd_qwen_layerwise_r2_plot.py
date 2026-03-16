@@ -50,14 +50,24 @@ def extract_final_r2(obj) -> float:
     Extract a scalar final_r2 from a loaded result object.
 
     For these NSD/Qwen results the interesting value lives under the
-    'metrics' dict as a single scalar 'final_r2'.
+    'metrics' dict as a scalar 'final_r2'. In some cases this is nested
+    under a metric name such as 'torch_ridge'.
     """
     if not isinstance(obj, dict):
         raise KeyError("Result object is not a dict; cannot extract 'final_r2'.")
 
     metrics = obj.get("metrics")
-    if isinstance(metrics, dict) and "final_r2" in metrics:
+    if not isinstance(metrics, dict):
+        raise KeyError("Result object has no 'metrics' dict; cannot extract 'final_r2'.")
+
+    # 1) Direct key at metrics['final_r2'] (if present).
+    if "final_r2" in metrics:
         return float(metrics["final_r2"])
+
+    # 2) Nested under a specific metric (e.g., metrics['torch_ridge']['final_r2']).
+    for value in metrics.values():
+        if isinstance(value, dict) and "final_r2" in value:
+            return float(value["final_r2"])
 
     raise KeyError("Could not find a scalar 'final_r2' in result object's 'metrics'.")
 
