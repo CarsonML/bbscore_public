@@ -182,6 +182,7 @@ def test_pipeline(
             debug=debug,
             random_projection=random_projection,
         )
+        pipeline.benchmark_identifier = benchmark_identifier
     elif model_identifier != 'None':
         pipeline = benchmark_class(
             model_identifier,

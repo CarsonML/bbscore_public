@@ -265,7 +265,7 @@ class BenchmarkScore:
         results['timestamp'] = datetime.datetime.utcnow().isoformat()
         results['aggregation_mode'] = self.aggregation_mode
 
-        benchmark_name = self.__class__.__name__
+        benchmark_name = getattr(self, "benchmark_identifier", self.__class__.__name__)
         results_file = os.path.join(
             self.results_dir,
             f"{self.model_identifier}_{current_layer_name}_{benchmark_name}.pkl"
