@@ -96,12 +96,6 @@ class Qwen3VL:
                 f"Mode {self.mode} preprocessing is not implemented."
             )
 
-        # Pad/truncate to a fixed max_length so that all samples in a DataLoader
-        # batch share the same sequence length. This avoids shape mismatches when
-        # FeatureExtractor concatenates per-sample tensors along the batch dim.
-        tokenizer = getattr(self.processor, "tokenizer", None)
-        max_length = getattr(tokenizer, "model_max_length", None) if tokenizer is not None else None
-
         apply_kwargs = {
             # HF apply_chat_template expects the conversation under the first
             # positional arg or the 'conversation' keyword.
@@ -111,15 +105,6 @@ class Qwen3VL:
             "return_dict": True,
             "return_tensors": "pt",
         }
-        # Only set padding/truncation if we have a sensible max_length.
-        if max_length is not None and max_length > 0:
-            apply_kwargs.update(
-                {
-                    "padding": "max_length",
-                    "truncation": True,
-                    "max_length": max_length,
-                }
-            )
 
         inputs_batch_feature = self.processor.apply_chat_template(**apply_kwargs)
 

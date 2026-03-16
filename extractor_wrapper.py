@@ -204,8 +204,31 @@ class FeatureExtractor:
                 for k, v in list(inputs.items()):
                     if isinstance(v, list) and len(v) > 0 and isinstance(v[0], torch.Tensor):
                         # BBScore custom_collate turns dictionaries into lists of batched items.
-                        # Since Qwen outputs pre-batched [1, ...] tensors, we concatenate them along batch dim.
-                        inputs[k] = torch.cat(v, dim=0)
+                        # Since Qwen outputs pre-batched [1, ...] tensors, we need to merge them
+                        # into a single batched tensor. If their non-batch dimensions differ
+                        # (e.g. variable sequence lengths for language models), we pad each
+                        # sample along dim=1 up to the max length in this batch.
+                        shapes = [t.shape for t in v]
+                        if all(s == shapes[0] for s in shapes):
+                            inputs[k] = torch.cat(v, dim=0)
+                        else:
+                            # Only support 2D tensors with shape [B, L] for padding here.
+                            if not all(t.ndim == 2 for t in v):
+                                raise ValueError(
+                                    f\"Cannot batch key '{k}' with mismatched shapes {shapes}; "
+                                    \"only 2D tensors are supported for padding.\"
+                                )
+                            max_len = max(t.shape[1] for t in v)
+                            padded = []
+                            for t in v:
+                                cur_len = t.shape[1]
+                                if cur_len == max_len:
+                                    padded.append(t)
+                                else:
+                                    pad_len = max_len - cur_len
+                                    pad = torch.zeros((t.shape[0], pad_len), dtype=t.dtype, device=t.device)
+                                    padded.append(torch.cat([t, pad], dim=1))
+                            inputs[k] = torch.cat(padded, dim=0)
 
                 for k, v in inputs.items():
                     if isinstance(v, torch.Tensor):
