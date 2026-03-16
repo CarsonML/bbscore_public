@@ -1,0 +1,35 @@
+{
+  "visual_image": {
+    "benchmarks": [
+      "NSDV4Shared",
+      "NSDVentralShared",
+      "NSDParietalShared",
+      "NSDLateralShared",
+      "NSDHighVentralShared",
+      "NSDHighLateralShared"
+    ],
+    "layer_indices": [0, 6, 12, 18, 24, 26]
+  },
+  "language_image": {
+    "benchmarks": [
+      "NSDV4Shared",
+      "NSDVentralShared",
+      "NSDParietalShared",
+      "NSDLateralShared",
+      "NSDHighVentralShared",
+      "NSDHighLateralShared"
+    ],
+    "layer_indices": [4, 12, 24, 35]
+  },
+  "language_caption": {
+    "benchmarks": [
+      "NSDV4CaptionShared",
+      "NSDVentralCaptionShared",
+      "NSDParietalCaptionShared",
+      "NSDLateralCaptionShared",
+      "NSDHighVentralCaptionShared",
+      "NSDHighLateralCaptionShared"
+    ],
+    "layer_indices": [4, 12, 24, 35]
+  }
+}

@@ -42,6 +42,14 @@ DEFAULT_CAPTION_BENCHMARKS = [
 ]
 
 
+def load_sweep_config(config_path: str) -> dict:
+    path = Path(config_path).expanduser().resolve()
+    if not path.exists():
+        raise FileNotFoundError(f"Sweep config not found: {path}")
+    with path.open("r") as handle:
+        return json.load(handle)
+
+
 def discover_qwen_layers(model_identifier: str) -> dict:
     if model_identifier not in {"qwen3_vl_8b_img", "qwen3_vl_8b_txt", "qwen3_vl_8b_joint"}:
         raise ValueError(
@@ -168,6 +176,11 @@ def main() -> int:
     )
     parser.add_argument("--model", default="qwen3_vl_8b_img")
     parser.add_argument(
+        "--config",
+        default="qwen_sweep_config.json",
+        help="Path to JSON config controlling default benchmarks and layer indices per sweep mode.",
+    )
+    parser.add_argument(
         "--sweep-mode",
         choices=["visual_image", "language_image", "language_caption"],
         default="language_image",
@@ -182,7 +195,14 @@ def main() -> int:
     parser.add_argument(
         "--benchmarks",
         nargs="+",
-        default=DEFAULT_VISUAL_BENCHMARKS,
+        default=None,
+    )
+    parser.add_argument(
+        "--layer-indices",
+        nargs="+",
+        type=int,
+        default=None,
+        help="Optional explicit layer indices to override the config for the selected sweep mode.",
     )
     parser.add_argument("--metric", default="torch_ridge")
     parser.add_argument("--batch-size", type=int, default=4)
@@ -193,25 +213,27 @@ def main() -> int:
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
+    config = load_sweep_config(args.config)
+    if args.sweep_mode not in config:
+        raise KeyError(
+            f"Sweep mode '{args.sweep_mode}' not found in config {Path(args.config).resolve()}"
+        )
+    mode_config = config[args.sweep_mode]
+
     # Configure model + default benchmarks based on sweep_mode, unless
     # the user explicitly overrides benchmarks on the CLI.
     if args.sweep_mode == "visual_image":
         if args.model != "qwen3_vl_8b_img":
             args.model = "qwen3_vl_8b_img"
-        default_benchmarks = DEFAULT_VISUAL_BENCHMARKS
     elif args.sweep_mode == "language_image":
         if args.model != "qwen3_vl_8b_img":
             args.model = "qwen3_vl_8b_img"
-        default_benchmarks = DEFAULT_VISUAL_BENCHMARKS
     else:  # language_caption
         if args.model != "qwen3_vl_8b_txt":
             args.model = "qwen3_vl_8b_txt"
-        default_benchmarks = DEFAULT_CAPTION_BENCHMARKS
 
-    # If the user didn't override benchmarks (still using our default list),
-    # swap in the appropriate default for the chosen mode.
-    if args.benchmarks == DEFAULT_VISUAL_BENCHMARKS:
-        args.benchmarks = default_benchmarks
+    if args.benchmarks is None:
+        args.benchmarks = mode_config.get("benchmarks", [])
 
     output_root = ensure_output_root(args.output_root)
     discovery = discover_qwen_layers(args.model)
@@ -222,13 +244,25 @@ def main() -> int:
     if not visual_indices:
         raise RuntimeError("No visual block layers matching 'model.visual.blocks.<idx>' were found.")
 
-    selected_visual = select_indices(visual_indices, args.step)
-    selected_language = select_indices(language_indices, args.step) if language_indices else []
+    if args.layer_indices is not None:
+        selected_indices = args.layer_indices
+    else:
+        selected_indices = mode_config.get("layer_indices")
+
+    if not selected_indices:
+        # Fallback to historical step-based behavior if no config list is supplied.
+        if args.sweep_mode == "visual_image":
+            selected_indices = select_indices(visual_indices, args.step)
+        else:
+            selected_indices = select_indices(language_indices, args.step) if language_indices else []
+
+    selected_visual = selected_indices if args.sweep_mode == "visual_image" else select_indices(visual_indices, args.step)
+    selected_language = selected_indices if args.sweep_mode != "visual_image" else []
 
     if args.sweep_mode == "visual_image":
-        selected_layers = [f"model.visual.blocks.{idx}" for idx in selected_visual]
+        selected_layers = [f"model.visual.blocks.{idx}" for idx in selected_indices]
     else:
-        selected_layers = [f"model.language_model.model.layers.{idx}" for idx in selected_language]
+        selected_layers = [f"model.language_model.layers.{idx}" for idx in selected_indices]
 
     print(f"Discovered {len(visual_indices)} visual blocks: {visual_indices[0]}..{visual_indices[-1]}")
     if language_indices:
@@ -236,10 +270,11 @@ def main() -> int:
     else:
         print("Did not detect language block names with the current heuristics.")
     if args.sweep_mode == "visual_image":
-        print(f"[Mode: visual_image] Selected every {args.step} visual blocks: {selected_visual}")
+        print(f"[Mode: visual_image] Selected visual blocks: {selected_indices}")
     else:
-        print(f"[Mode: {args.sweep_mode}] Selected every {args.step} language blocks: {selected_language}")
+        print(f"[Mode: {args.sweep_mode}] Selected language blocks: {selected_indices}")
     print(f"Benchmarks: {', '.join(args.benchmarks)}")
+    print(f"Using sweep config: {Path(args.config).expanduser().resolve()}")
 
     base_command = [
         sys.executable,
@@ -265,6 +300,7 @@ def main() -> int:
         "use_ridge_smart_memory": args.use_ridge_smart_memory,
         "continue_on_error": args.continue_on_error,
         "output_root": str(output_root),
+        "config_path": str(Path(args.config).expanduser().resolve()),
         "visual_indices": visual_indices,
         "language_indices": language_indices,
         "selected_visual_indices": selected_visual,
