@@ -64,6 +64,7 @@ class NSDCaptionStimulusSet(BaseDataset):
             )
 
         self.captions_path = captions_path
+        print(f"NSDCaptionStimulusSet using captions file: {self.captions_path}")
         self._load_captions()
         self._validate_alignment()
 

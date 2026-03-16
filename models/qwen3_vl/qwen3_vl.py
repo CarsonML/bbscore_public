@@ -155,6 +155,32 @@ class Qwen3VL:
         is_tensor = isinstance(features_np, torch.Tensor)
         expected_batch_size = getattr(self, "_bbscore_expected_batch_size", None)
         current_layer_name = getattr(self, "_bbscore_current_layer_name", "unknown")
+
+        # --- LANGUAGE PATHWAY POOLING ---
+        # For language transformer layers (text side), we do not have image_grid_thw
+        # and do not want patch reconstruction. Instead, we pool over the sequence
+        # dimension and return a single vector per sample (last token embedding),
+        # analogous to the GPT2/LLAMA3 wrappers in this repo.
+        if "language_model" in current_layer_name:
+            feats = features_np
+            if not is_tensor:
+                feats = torch.from_numpy(feats)
+
+            # Expect [B, T, D] or [T, D]; always pool over the second-to-last dim.
+            if feats.ndim == 3:
+                # [batch, seq, dim] -> take last token along seq dim
+                pooled = feats[:, -1, :]
+            elif feats.ndim == 2:
+                # [seq, dim] or [batch, dim]; if it's [seq, dim] we'll just treat
+                # the last row as the pooled representation.
+                pooled = feats[-1:, :] if expected_batch_size == 1 else feats
+            else:
+                return features_np
+
+            if is_tensor:
+                return pooled
+            return pooled.cpu().numpy()
+
         patch_counts = None
         if hasattr(self, '_last_image_grid_thw') and self._last_image_grid_thw is not None:
             patch_counts = self._last_image_grid_thw.prod(dim=1).tolist()
