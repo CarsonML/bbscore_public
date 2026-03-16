@@ -17,6 +17,8 @@ from sklearn.datasets import get_data_home
 #   text_config.num_hidden_layers = 36
 QWEN3_VL_8B_VISUAL_DEPTH = 27
 QWEN3_VL_8B_LANGUAGE_DEPTH = 36
+
+# Image-based NSD benchmarks (visual pathway; NSD images as stimuli)
 DEFAULT_VISUAL_BENCHMARKS = [
     "NSDV1Shared",
     "NSDV2Shared",
@@ -31,6 +33,23 @@ DEFAULT_VISUAL_BENCHMARKS = [
     "NSDMidLateralShared",
     "NSDMidVentralShared",
     "NSDMidParietalShared",
+]
+
+# Caption-based NSD benchmarks (language pathway; NSD captions as stimuli)
+DEFAULT_CAPTION_BENCHMARKS = [
+    "NSDV1CaptionShared",
+    "NSDV2CaptionShared",
+    "NSDV3CaptionShared",
+    "NSDV4CaptionShared",
+    "NSDLateralCaptionShared",
+    "NSDVentralCaptionShared",
+    "NSDParietalCaptionShared",
+    "NSDHighLateralCaptionShared",
+    "NSDHighVentralCaptionShared",
+    "NSDHighParietalCaptionShared",
+    "NSDMidLateralCaptionShared",
+    "NSDMidVentralCaptionShared",
+    "NSDMidParietalCaptionShared",
 ]
 
 
@@ -156,9 +175,21 @@ def summarize_results(
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Sweep Qwen3-VL visual block layers for BBScore in one run.py invocation."
+        description="Sweep Qwen3-VL layers for BBScore in different modes (visual or language, image or caption)."
     )
     parser.add_argument("--model", default="qwen3_vl_8b_img")
+    parser.add_argument(
+        "--sweep-mode",
+        choices=["visual_image", "language_image", "language_caption"],
+        default="language_image",
+        help=(
+            "Which pathway/input to sweep: "
+            "'visual_image' (vision blocks, image input), "
+            "'language_image' (language blocks, image+prompt input), or "
+            "'language_caption' (language blocks, caption-only input). "
+            "Visual sweeps are disabled by default and only run when sweep-mode=visual_image."
+        ),
+    )
     parser.add_argument(
         "--benchmarks",
         nargs="+",
@@ -173,39 +204,66 @@ def main() -> int:
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
+    # Configure model + default benchmarks based on sweep_mode, unless
+    # the user explicitly overrides benchmarks on the CLI.
+    if args.sweep_mode == "visual_image":
+        if args.model != "qwen3_vl_8b_img":
+            args.model = "qwen3_vl_8b_img"
+        default_benchmarks = DEFAULT_VISUAL_BENCHMARKS
+    elif args.sweep_mode == "language_image":
+        if args.model != "qwen3_vl_8b_img":
+            args.model = "qwen3_vl_8b_img"
+        default_benchmarks = DEFAULT_VISUAL_BENCHMARKS
+    else:  # language_caption
+        if args.model != "qwen3_vl_8b_txt":
+            args.model = "qwen3_vl_8b_txt"
+        default_benchmarks = DEFAULT_CAPTION_BENCHMARKS
+
+    # If the user didn't override benchmarks (still using our default list),
+    # swap in the appropriate default for the chosen mode.
+    if args.benchmarks == DEFAULT_VISUAL_BENCHMARKS:
+        args.benchmarks = default_benchmarks
+
     output_root = ensure_output_root(args.output_root)
     discovery = discover_qwen_layers(args.model)
 
     visual_indices = discovery["visual_indices"]
     language_indices = discovery["language_indices"]
+
     if not visual_indices:
         raise RuntimeError("No visual block layers matching 'model.visual.blocks.<idx>' were found.")
 
     selected_visual = select_indices(visual_indices, args.step)
-    selected_layers = [f"model.visual.blocks.{idx}" for idx in selected_visual]
+    selected_language = select_indices(language_indices, args.step) if language_indices else []
+
+    if args.sweep_mode == "visual_image":
+        selected_layers = [f"model.visual.blocks.{idx}" for idx in selected_visual]
+    else:
+        selected_layers = [f"model.language_model.model.layers.{idx}" for idx in selected_language]
 
     print(f"Discovered {len(visual_indices)} visual blocks: {visual_indices[0]}..{visual_indices[-1]}")
     if language_indices:
         print(f"Discovered {len(language_indices)} language blocks: {language_indices[0]}..{language_indices[-1]}")
     else:
         print("Did not detect language block names with the current heuristics.")
-    print(f"Selected every {args.step} visual blocks: {selected_visual}")
+    if args.sweep_mode == "visual_image":
+        print(f"[Mode: visual_image] Selected every {args.step} visual blocks: {selected_visual}")
+    else:
+        print(f"[Mode: {args.sweep_mode}] Selected every {args.step} language blocks: {selected_language}")
     print(f"Benchmarks: {', '.join(args.benchmarks)}")
 
-    command = [
+    base_command = [
         sys.executable,
         "run.py",
         "--model",
         args.model,
-        "--layer",
-        *selected_layers,
         "--metric",
         args.metric,
         "--batch-size",
         str(args.batch_size),
     ]
     if args.use_ridge_smart_memory:
-        command.append("--use-ridge-smart-memory")
+        base_command.append("--use-ridge-smart-memory")
 
     manifest = {
         "created_utc": datetime.now(UTC).isoformat(),
@@ -214,24 +272,41 @@ def main() -> int:
         "metric": args.metric,
         "batch_size": args.batch_size,
         "step": args.step,
+        "sweep_mode": args.sweep_mode,
         "use_ridge_smart_memory": args.use_ridge_smart_memory,
         "continue_on_error": args.continue_on_error,
         "output_root": str(output_root),
         "visual_indices": visual_indices,
         "language_indices": language_indices,
         "selected_visual_indices": selected_visual,
+        "selected_language_indices": selected_language,
         "selected_layers": selected_layers,
-        "commands": [
-            command + ["--benchmark", benchmark]
-            for benchmark in args.benchmarks
-        ],
+        # commands will depend on sweep_mode; populated below
+        "commands": [],
     }
+
+    commands: list[list[str]] = []
+    if args.sweep_mode == "visual_image":
+        # Visual sweeps: run one run.py call per layer per benchmark.
+        for benchmark in args.benchmarks:
+            for layer_name in selected_layers:
+                cmd = base_command + ["--layer", layer_name, "--benchmark", benchmark]
+                commands.append(cmd)
+    else:
+        # Language sweeps: run one run.py call per benchmark with all layers at once.
+        if not selected_layers:
+            raise RuntimeError("No language layers selected for language sweep.")
+        for benchmark in args.benchmarks:
+            cmd = base_command + ["--layer", *selected_layers, "--benchmark", benchmark]
+            commands.append(cmd)
+
+    manifest["commands"] = commands
     write_manifest(output_root / "qwen_visual_sweep_manifest.json", manifest)
 
     if args.dry_run:
         print("Dry run commands:")
-        for benchmark in args.benchmarks:
-            print(" ".join(command + ["--benchmark", benchmark]))
+        for cmd in commands:
+            print(" ".join(cmd))
         return 0
 
     env = os.environ.copy()
@@ -241,32 +316,33 @@ def main() -> int:
     failed_benchmarks: list[str] = []
 
     print(f"Writing raw results under: {output_root / 'results'}")
-    for benchmark in args.benchmarks:
-        benchmark_command = command + ["--benchmark", benchmark]
+    for cmd in commands:
         print("Running command:")
-        print(" ".join(benchmark_command))
+        print(" ".join(cmd))
         started_utc = datetime.now(UTC).isoformat()
         try:
-            subprocess.run(benchmark_command, check=True, env=env)
+            subprocess.run(cmd, check=True, env=env)
             status = "ok"
             return_code = 0
         except subprocess.CalledProcessError as exc:
             status = "failed"
             return_code = exc.returncode
-            failed_benchmarks.append(benchmark)
+            # Benchmark name is always the last argument after '--benchmark'
+            benchmark_name = cmd[-1] if cmd[-2] == "--benchmark" else "unknown"
+            failed_benchmarks.append(benchmark_name)
             print(
-                f"Benchmark {benchmark} failed with return code {return_code}. "
+                f"Command failed with return code {return_code}. "
                 f"See the Slurm log above for the exact failing command output."
             )
             if not args.continue_on_error:
                 run_log.append(
                     {
-                        "benchmark": benchmark,
+                        "benchmark": benchmark_name,
                         "status": status,
                         "return_code": return_code,
                         "started_utc": started_utc,
                         "finished_utc": datetime.now(UTC).isoformat(),
-                        "command": benchmark_command,
+                        "command": cmd,
                     }
                 )
                 write_run_log(run_log_path, run_log)
@@ -274,12 +350,12 @@ def main() -> int:
         finished_utc = datetime.now(UTC).isoformat()
         run_log.append(
             {
-                "benchmark": benchmark,
+                "benchmark": cmd[-1] if len(cmd) >= 2 and cmd[-2] == "--benchmark" else "unknown",
                 "status": status,
                 "return_code": return_code,
                 "started_utc": started_utc,
                 "finished_utc": finished_utc,
-                "command": benchmark_command,
+                "command": cmd,
             }
         )
         write_run_log(run_log_path, run_log)
