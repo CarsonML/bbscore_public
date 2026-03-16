@@ -343,13 +343,26 @@ class JointRidgeMetric(RidgeMetric):
     """
     Joint ridge regression metric.
 
-    This is a thin wrapper around RidgeMetric so that joint-feature
-    evaluations can be addressed by a separate metric key
-    (\"joint_ridge\"). It expects that the caller has already
-    constructed a concatenated feature matrix across models/layers
-    and passes it as `source`.
+    This metric is reserved for joint-feature evaluation and always uses
+    the torch ridge backend. It expects that the caller has already
+    constructed a concatenated feature matrix across models/layers and
+    passes it as `source`.
     """
-    pass
+    def __init__(
+        self,
+        alpha_options: List[float] = [
+            1e-10, 1e-9, 1e-8, 1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2,
+            0.1, 1.0, 10.0, 100.0, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9, 1e10
+        ],
+        ceiling: Optional[float] = None,
+        subsample_features_for_alpha: Optional[int] = None,
+    ):
+        super().__init__(
+            alpha_options=alpha_options,
+            ceiling=ceiling,
+            mode="torch",
+            subsample_features_for_alpha=subsample_features_for_alpha,
+        )
 
 
 class Ridge3DChunkedMetric(RidgeMetric):
