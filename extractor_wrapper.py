@@ -215,8 +215,8 @@ class FeatureExtractor:
                             # Only support 2D tensors with shape [B, L] for padding here.
                             if not all(t.ndim == 2 for t in v):
                                 raise ValueError(
-                                    f\"Cannot batch key '{k}' with mismatched shapes {shapes}; "
-                                    \"only 2D tensors are supported for padding.\"
+                                    f"Cannot batch key '{k}' with mismatched shapes {shapes}; "
+                                    "only 2D tensors are supported for padding."
                                 )
                             max_len = max(t.shape[1] for t in v)
                             padded = []
