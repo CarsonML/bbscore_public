@@ -88,6 +88,7 @@ def test_pipeline(
     debug: bool,
     use_ridge_smart_memory: bool,
     random_projection: str,
+    random_projection_target_dim: Optional[int],
     aggregation_mode: str,
     joint_model_identifiers: Optional[List[str]] = None,
     joint_layer_names: Optional[List[str]] = None,
@@ -218,6 +219,30 @@ def test_pipeline(
         print(
             f"Warning: Benchmark '{benchmark_identifier}' does not support Random Projection. Ignoring.")
 
+    # Set RP target dimension if requested
+    if random_projection_target_dim is not None:
+        if not random_projection:
+            print(
+                "Warning: --random-projection-target-dim was provided but --random-projection is not enabled. "
+                "Target dimension will be ignored."
+            )
+        else:
+            target_dim_applied = False
+            if hasattr(pipeline, "extractor") and hasattr(pipeline.extractor, "target_dim"):
+                pipeline.extractor.target_dim = random_projection_target_dim
+                target_dim_applied = True
+            if hasattr(pipeline, "joint_extractors"):
+                for extractor in pipeline.joint_extractors:
+                    if hasattr(extractor, "target_dim"):
+                        extractor.target_dim = random_projection_target_dim
+                        target_dim_applied = True
+            if target_dim_applied:
+                print(f"Random projection target dimension set to: {random_projection_target_dim}")
+            else:
+                print(
+                    f"Warning: Could not apply random projection target dimension to benchmark '{benchmark_identifier}'."
+                )
+
     # 6. Add Desired Metrics (with compatibility check)
     for metric_name in metric_names:
         if not validate_metric_benchmark(metric_name, benchmark_identifier):
@@ -337,6 +362,12 @@ if __name__ == "__main__":
         help="Enable random projection (dense, sparse).",
     )
     parser.add_argument(
+        "--random-projection-target-dim",
+        type=int,
+        default=None,
+        help="Target dimension for random projection (applies to extractor.target_dim).",
+    )
+    parser.add_argument(
         "--aggregation-mode",
         type=str,
         default="none",
@@ -372,6 +403,7 @@ if __name__ == "__main__":
         debug=args.debug,
         use_ridge_smart_memory=args.use_ridge_smart_memory,
         random_projection=args.random_projection,
+        random_projection_target_dim=args.random_projection_target_dim,
         aggregation_mode=args.aggregation_mode,
         joint_model_identifiers=args.joint_models,
         joint_layer_names=args.joint_layers,

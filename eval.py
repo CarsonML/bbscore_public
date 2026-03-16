@@ -18,6 +18,11 @@ parser.add_argument(
     type=str,
     default=None
 )
+parser.add_argument(
+    "--random-projection-target-dim",
+    type=int,
+    default=None
+)
 args = parser.parse_args()
 
 # Check if SCIKIT_LEARN_DATA environment variable is set.
@@ -153,6 +158,11 @@ for exp in experiments:
 
             if args.random_projection:
                 debug_arg += ["--random-projection", args.random_projection]
+            if args.random_projection_target_dim is not None:
+                debug_arg += [
+                    "--random-projection-target-dim",
+                    str(args.random_projection_target_dim)
+                ]
 
             # build and run
             cmd = [
