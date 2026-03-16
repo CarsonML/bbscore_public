@@ -19,37 +19,26 @@ QWEN3_VL_8B_VISUAL_DEPTH = 27
 QWEN3_VL_8B_LANGUAGE_DEPTH = 36
 
 # Image-based NSD benchmarks (visual pathway; NSD images as stimuli)
+# Restricted to a diverse set of six ROIs:
+# V4, ventral stream, parietal, lateral, high-level ventral, high-level lateral.
 DEFAULT_VISUAL_BENCHMARKS = [
-    "NSDV1Shared",
-    "NSDV2Shared",
-    "NSDV3Shared",
     "NSDV4Shared",
-    "NSDLateralShared",
     "NSDVentralShared",
     "NSDParietalShared",
-    "NSDHighLateralShared",
+    "NSDLateralShared",
     "NSDHighVentralShared",
-    "NSDHighParietalShared",
-    "NSDMidLateralShared",
-    "NSDMidVentralShared",
-    "NSDMidParietalShared",
+    "NSDHighLateralShared",
 ]
 
 # Caption-based NSD benchmarks (language pathway; NSD captions as stimuli)
+# Caption variants of the same six ROIs.
 DEFAULT_CAPTION_BENCHMARKS = [
-    "NSDV1CaptionShared",
-    "NSDV2CaptionShared",
-    "NSDV3CaptionShared",
     "NSDV4CaptionShared",
-    "NSDLateralCaptionShared",
     "NSDVentralCaptionShared",
     "NSDParietalCaptionShared",
-    "NSDHighLateralCaptionShared",
+    "NSDLateralCaptionShared",
     "NSDHighVentralCaptionShared",
-    "NSDHighParietalCaptionShared",
-    "NSDMidLateralCaptionShared",
-    "NSDMidVentralCaptionShared",
-    "NSDMidParietalCaptionShared",
+    "NSDHighLateralCaptionShared",
 ]
 
 
