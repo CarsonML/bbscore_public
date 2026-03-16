@@ -164,7 +164,7 @@ def main() -> int:
         nargs="+",
         default=DEFAULT_VISUAL_BENCHMARKS,
     )
-    parser.add_argument("--metric", default="ridge")
+    parser.add_argument("--metric", default="torch_ridge")
     parser.add_argument("--batch-size", type=int, default=4)
     parser.add_argument("--step", type=int, default=6)
     parser.add_argument("--use-ridge-smart-memory", action="store_true")
