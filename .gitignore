@@ -28,3 +28,6 @@ NSDStimulusSet/
 
 # Local files
 generate_presentation.py
+
+# Slurm sweep artifacts: keep summaries/logs, skip bulky raw result pickles
+slurm_runs/**/results/*.pkl
