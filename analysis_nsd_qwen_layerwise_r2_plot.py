@@ -180,8 +180,8 @@ def plot_per_brain_area(
         area_df = df[df["brain_area"] == brain_area]
 
         for modality, style, color, label in [
-            ("image", "-", "C0", "Image"),
-            ("caption", "--", "C1", "Text"),
+            ("image", "-", "purple", "Image"),
+            ("caption", "--", "red", "Text"),
         ]:
             sub = area_df[area_df["modality"] == modality].sort_values("layer")
             if sub.empty:
