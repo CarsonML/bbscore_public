@@ -103,7 +103,9 @@ class Qwen3VL:
         max_length = getattr(tokenizer, "model_max_length", None) if tokenizer is not None else None
 
         apply_kwargs = {
-            "messages": messages,
+            # HF apply_chat_template expects the conversation under the first
+            # positional arg or the 'conversation' keyword.
+            "conversation": messages,
             "tokenize": True,
             "add_generation_prompt": True,
             "return_dict": True,
