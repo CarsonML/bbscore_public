@@ -49,14 +49,17 @@ def extract_final_r2(obj) -> float:
     """
     Extract a scalar final_r2 from a loaded result object.
 
-    This is made robust against a few common result shapes.
+    For these NSD/Qwen results the interesting value lives under the
+    'metrics' dict as a single scalar 'final_r2'.
     """
-    if isinstance(obj, dict):
-        if "final_r2" in obj:
-            return float(obj["final_r2"])
-        if "metrics" in obj and isinstance(obj["metrics"], dict) and "final_r2" in obj["metrics"]:
-            return float(obj["metrics"]["final_r2"])
-    raise KeyError("Could not find a scalar 'final_r2' in result object.")
+    if not isinstance(obj, dict):
+        raise KeyError("Result object is not a dict; cannot extract 'final_r2'.")
+
+    metrics = obj.get("metrics")
+    if isinstance(metrics, dict) and "final_r2" in metrics:
+        return float(metrics["final_r2"])
+
+    raise KeyError("Could not find a scalar 'final_r2' in result object's 'metrics'.")
 
 
 def collect_results(results_dir: str) -> pd.DataFrame:
