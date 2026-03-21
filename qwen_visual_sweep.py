@@ -128,6 +128,14 @@ def summarize_results(
                 payload = pickle.load(handle)
 
             metrics_block = payload.get("metrics", {})
+            # Re-runs append to a list of metric dicts; use the latest run for summary.
+            if isinstance(metrics_block, list):
+                if not metrics_block:
+                    metrics_block = {}
+                else:
+                    metrics_block = metrics_block[-1]
+            if not isinstance(metrics_block, dict):
+                metrics_block = {}
             metric_block = metrics_block.get(metric)
             if metric_block is None:
                 row["status"] = "missing_metric"
@@ -182,14 +190,22 @@ def main() -> int:
     )
     parser.add_argument(
         "--sweep-mode",
-        choices=["visual_image", "language_image", "language_caption"],
+        choices=[
+            "visual_image",
+            "language_image",
+            "language_caption",
+            "language_caption_long",
+            "language_multimodal",
+        ],
         default="language_image",
         help=(
             "Which pathway/input to sweep: "
             "'visual_image' (vision blocks, image input), "
-            "'language_image' (language blocks, image+prompt input), or "
-            "'language_caption' (language blocks, caption-only input). "
-            "Visual sweeps are disabled by default and only run when sweep-mode=visual_image."
+            "'language_image' (language blocks, image+prompt input), "
+            "'language_caption' / 'language_caption_long' (language blocks, caption-only; long uses "
+            "a separate config block—set NSD_CAPTIONS_PATH to your JSONL), "
+            "'language_multimodal' (single forward: image + caption from NSD_CAPTIONS_PATH, language layers, qwen3_vl_8b_joint; "
+            "batching uses the same per-sample preprocess + collate path as other Qwen modes)."
         ),
     )
     parser.add_argument(
@@ -228,9 +244,12 @@ def main() -> int:
     elif args.sweep_mode == "language_image":
         if args.model != "qwen3_vl_8b_img":
             args.model = "qwen3_vl_8b_img"
-    else:  # language_caption
+    elif args.sweep_mode in ("language_caption", "language_caption_long"):
         if args.model != "qwen3_vl_8b_txt":
             args.model = "qwen3_vl_8b_txt"
+    elif args.sweep_mode == "language_multimodal":
+        if args.model != "qwen3_vl_8b_joint":
+            args.model = "qwen3_vl_8b_joint"
 
     if args.benchmarks is None:
         args.benchmarks = mode_config.get("benchmarks", [])

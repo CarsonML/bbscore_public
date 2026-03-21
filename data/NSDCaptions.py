@@ -2,6 +2,9 @@ import json
 import os
 from typing import Callable, Dict, Optional
 
+import numpy as np
+from PIL import Image
+
 from data.base import BaseDataset
 from data.NSDShared import NSDStimulusSet
 
@@ -128,4 +131,107 @@ class NSDCaptionStimulusSet(BaseDataset):
         if self.preprocess is None:
             return caption
         return self.preprocess(caption)
+
+
+class NSDImageCaptionStimulusSet(BaseDataset):
+    """
+    NSD shared test images paired with captions from a JSONL (same schema as
+    NSDCaptionStimulusSet). Each sample is ``{"image": PIL.Image, "caption": str}``
+    (or preprocessed output) for multimodal models that take image + text in one forward.
+    """
+
+    def __init__(
+        self,
+        root_dir: Optional[str] = None,
+        captions_path: Optional[str] = None,
+        preprocess: Optional[Callable] = None,
+    ):
+        super().__init__(root_dir)
+        self.preprocess = preprocess
+
+        if captions_path is None:
+            captions_path = os.environ.get("NSD_CAPTIONS_PATH")
+
+        if captions_path is None:
+            default_dir = os.path.join(os.getcwd(), "captions", "nsd_qwen3vl")
+            if os.path.isdir(default_dir):
+                candidates = [
+                    os.path.join(default_dir, f)
+                    for f in os.listdir(default_dir)
+                    if f.endswith(".jsonl")
+                ]
+                if len(candidates) == 1:
+                    captions_path = candidates[0]
+
+        if captions_path is None or not os.path.isfile(captions_path):
+            raise FileNotFoundError(
+                "NSDImageCaptionStimulusSet could not locate a captions JSONL file. "
+                "Set NSD_CAPTIONS_PATH to a JSONL with {\"index\", \"caption\"} per line."
+            )
+
+        self.captions_path = captions_path
+        print(f"NSDImageCaptionStimulusSet using captions file: {self.captions_path}")
+        self.index_to_caption: Dict[int, str] = {}
+        self._load_captions()
+        self._nsd = NSDStimulusSet(root_dir=root_dir)
+        self._nsd._prepare_images()
+        nsd_len = len(self._nsd)
+        missing = [i for i in range(nsd_len) if i not in self.index_to_caption]
+        if missing:
+            raise ValueError(
+                f"NSDImageCaptionStimulusSet is missing captions for {len(missing)} "
+                f"indices out of {nsd_len}. Example missing: {missing[:10]}"
+            )
+        self._length = nsd_len
+
+    def _load_captions(self) -> None:
+        with open(self.captions_path, "r") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if not isinstance(rec, dict):
+                    continue
+                if "index" not in rec or "caption" not in rec:
+                    continue
+                idx = rec["index"]
+                caption = rec["caption"]
+                if not isinstance(idx, int):
+                    continue
+                if not isinstance(caption, str):
+                    continue
+                self.index_to_caption[idx] = caption
+
+        if not self.index_to_caption:
+            raise ValueError(
+                f"NSDImageCaptionStimulusSet found no valid captions in {self.captions_path}"
+            )
+
+    @staticmethod
+    def _truncate_caption(text: str) -> str:
+        max_chars = int(os.environ.get("NSD_MULTIMODAL_MAX_CAPTION_CHARS", "32000"))
+        if len(text) <= max_chars:
+            return text
+        return text[:max_chars]
+
+    def __len__(self) -> int:
+        return self._length
+
+    def __getitem__(self, idx: int):
+        if idx < 0 or idx >= self._length:
+            raise IndexError(f"Index {idx} out of range for NSDImageCaptionStimulusSet")
+        raw = self._nsd.test_image_data[idx]
+        if isinstance(raw, np.ndarray):
+            pil = Image.fromarray(raw).convert("RGB")
+        else:
+            pil = raw.convert("RGB") if hasattr(raw, "convert") else Image.fromarray(raw).convert("RGB")
+        caption = self._truncate_caption(self.index_to_caption[idx])
+        sample = {"image": pil, "caption": caption}
+        if self.preprocess is None:
+            return sample
+        return self.preprocess(sample)
 

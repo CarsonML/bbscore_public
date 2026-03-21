@@ -47,6 +47,9 @@ class Qwen3VL:
         - For mode \"img\": expects an image-like input (PIL/numpy/path) and builds
           a chat with an image + fixed text prompt.
         - For mode \"txt\": expects a caption string and builds a text-only chat.
+        - For mode \"joint\": expects ``{\"image\": PIL|ndarray|path, \"caption\": str}`` per
+          dataset sample (one forward's worth). DataLoader batching runs multiple such
+          preprocess calls and merges tensor dicts in ``extractor_wrapper`` (same as img/txt).
         """
         if self.mode == "img":
             if isinstance(input_data, str) and os.path.isfile(input_data):
@@ -91,6 +94,74 @@ class Qwen3VL:
                 raise ValueError(
                     "Qwen3VL TXT mode expects a caption string per sample."
                 )
+
+        elif self.mode == "joint":
+            # Multimodal: one forward with NSD image + caption (dict from NSDImageCaptionStimulusSet).
+            pil_img = None
+            caption_text = None
+
+            if isinstance(input_data, dict):
+                img = input_data.get("image")
+                cap = input_data.get("caption")
+                # Dataset __getitem__ returns one image + one caption per call; collated batches
+                # are already tensor dicts from prior preprocess calls, not raw image/caption lists.
+                if isinstance(img, (list, tuple)):
+                    if len(img) != 1:
+                        raise ValueError(
+                            "Qwen3VL joint mode expects a single image per preprocess call; "
+                            "use DataLoader batching (multiple preprocess calls), not a list of images here."
+                        )
+                    img = img[0]
+                if isinstance(cap, (list, tuple)):
+                    if len(cap) != 1:
+                        raise ValueError(
+                            "Qwen3VL joint mode expects a single caption per preprocess call; "
+                            "use DataLoader batching, not a list of captions here."
+                        )
+                    cap = cap[0]
+                if isinstance(img, str) and os.path.isfile(img):
+                    pil_img = Image.open(img).convert("RGB")
+                elif isinstance(img, np.ndarray):
+                    pil_img = Image.fromarray(np.uint8(img)).convert("RGB")
+                elif isinstance(img, Image.Image):
+                    pil_img = img.convert("RGB")
+                else:
+                    raise ValueError(
+                        "Qwen3VL joint mode expects dict['image'] to be PIL, ndarray, or path."
+                    )
+                if not isinstance(cap, str):
+                    raise ValueError("Qwen3VL joint mode expects dict['caption'] to be a string.")
+                caption_text = cap
+
+            elif isinstance(input_data, (tuple, list)) and len(input_data) == 2:
+                img, cap = input_data
+                if isinstance(img, str) and os.path.isfile(img):
+                    pil_img = Image.open(img).convert("RGB")
+                elif isinstance(img, np.ndarray):
+                    pil_img = Image.fromarray(np.uint8(img)).convert("RGB")
+                elif isinstance(img, Image.Image):
+                    pil_img = img.convert("RGB")
+                else:
+                    raise ValueError("Qwen3VL joint tuple input: image must be PIL, ndarray, or path.")
+                if not isinstance(cap, str):
+                    raise ValueError("Qwen3VL joint tuple input: caption must be a string.")
+                caption_text = cap
+            else:
+                raise ValueError(
+                    "Qwen3VL joint mode expects input_data to be "
+                    "{'image': PIL|ndarray|path, 'caption': str} or (image, caption)."
+                )
+
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "image", "image": pil_img},
+                        {"type": "text", "text": caption_text},
+                    ],
+                }
+            ]
+
         else:
             raise NotImplementedError(
                 f"Mode {self.mode} preprocessing is not implemented."

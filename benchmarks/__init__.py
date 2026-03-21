@@ -6,6 +6,7 @@ BENCHMARK_REGISTRY = {}
 # rather than crashing the entire registry.
 from benchmarks.NSD import NSDSharedBenchmark  # image-based NSD benchmarks
 from benchmarks.NSD import NSDSharedCaptionBenchmark  # caption/text-based NSD benchmarks
+from benchmarks.NSD import NSDSharedMultimodalBenchmark  # image+caption single-forward NSD benchmarks
 
 try:
     from benchmarks.BMD import BMDBenchmark

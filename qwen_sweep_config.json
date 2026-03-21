@@ -34,5 +34,31 @@
       "NSDHighLateralCaptionShared"
     ],
     "layer_indices": [4, 12, 24, 30, 35]
+  },
+  "language_caption_long": {
+    "benchmarks": [
+      "NSDV1CaptionShared",
+      "NSDV2CaptionShared",
+      "NSDV3CaptionShared",
+      "NSDV4CaptionShared",
+      "NSDParietalCaptionShared",
+      "NSDLateralCaptionShared",
+      "NSDHighVentralCaptionShared",
+      "NSDHighLateralCaptionShared"
+    ],
+    "layer_indices": [4, 12, 24, 30, 35]
+  },
+  "language_multimodal": {
+    "benchmarks": [
+      "NSDV1SharedMultimodal",
+      "NSDV2SharedMultimodal",
+      "NSDV3SharedMultimodal",
+      "NSDV4SharedMultimodal",
+      "NSDParietalSharedMultimodal",
+      "NSDLateralSharedMultimodal",
+      "NSDHighVentralSharedMultimodal",
+      "NSDHighLateralSharedMultimodal"
+    ],
+    "layer_indices": [4, 12, 24, 30, 35]
   }
 }
