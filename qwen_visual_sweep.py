@@ -224,6 +224,18 @@ def main() -> int:
     parser.add_argument("--batch-size", type=int, default=4)
     parser.add_argument("--step", type=int, default=6)
     parser.add_argument("--use-ridge-smart-memory", action="store_true")
+    parser.add_argument(
+        "--random-projection",
+        default=None,
+        choices=["dense", "sparse"],
+        help="Optional random projection for run.py (high-dim vision features). Use with --random-projection-target-dim.",
+    )
+    parser.add_argument(
+        "--random-projection-target-dim",
+        type=int,
+        default=None,
+        help="Target dim for random projection (e.g. 389376 for prior Qwen visual sweeps named rp389376).",
+    )
     parser.add_argument("--output-root", default=None)
     parser.add_argument("--continue-on-error", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
@@ -307,6 +319,12 @@ def main() -> int:
     ]
     if args.use_ridge_smart_memory:
         base_command.append("--use-ridge-smart-memory")
+    if args.random_projection:
+        base_command.extend(["--random-projection", args.random_projection])
+    if args.random_projection_target_dim is not None:
+        base_command.extend(
+            ["--random-projection-target-dim", str(args.random_projection_target_dim)]
+        )
 
     manifest = {
         "created_utc": datetime.now(UTC).isoformat(),
@@ -317,6 +335,8 @@ def main() -> int:
         "step": args.step,
         "sweep_mode": args.sweep_mode,
         "use_ridge_smart_memory": args.use_ridge_smart_memory,
+        "random_projection": args.random_projection,
+        "random_projection_target_dim": args.random_projection_target_dim,
         "continue_on_error": args.continue_on_error,
         "output_root": str(output_root),
         "config_path": str(Path(args.config).expanduser().resolve()),
