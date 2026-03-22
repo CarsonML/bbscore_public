@@ -23,6 +23,45 @@ except Exception:  # pragma: no cover – silently fall back to sklearn
     )
 
 
+def _attach_torch_ridge_diagnostics(
+    out: Dict,
+    best_alpha: float,
+    alpha_selection_val_mean_r2: float,
+    X_train_param: np.ndarray,
+    y_train_param: np.ndarray,
+) -> Dict:
+    """
+    Persist TorchRidge alpha-selection stats that mirror console logging
+    (\"Best Alpha\" / validation mean R² on the 90/10 split used to pick alpha).
+
+    Keys (stored in metric dict → end up in .pkl under joint_ridge / torch_ridge):
+      - ridge_best_alpha
+      - ridge_alpha_selection_val_mean_r2  (same idea as printed Val R²)
+      - ridge_alpha_selection_train_mean_r2 (in-sample train R² at that alpha)
+      - ridge_alpha_overfit_gap (train − val on the selection split; key name contains \"alpha\" for passthrough)
+    """
+    out = dict(out)
+    fm = TorchRidge(alpha=best_alpha)
+    fm.fit(X_train_param, y_train_param)
+    preds_train = fm.predict(X_train_param)
+    if hasattr(preds_train, "cpu"):
+        preds_train = preds_train.cpu().numpy()
+    train_mean = float(
+        np.mean(
+            [
+                r2_score(y_train_param[:, i], preds_train[:, i])
+                for i in range(y_train_param.shape[1])
+            ]
+        )
+    )
+    val_mean = float(alpha_selection_val_mean_r2)
+    out["ridge_best_alpha"] = np.float64(best_alpha)
+    out["ridge_alpha_selection_val_mean_r2"] = np.float64(val_mean)
+    out["ridge_alpha_selection_train_mean_r2"] = np.float64(train_mean)
+    out["ridge_alpha_overfit_gap"] = np.float64(train_mean - val_mean)
+    return out
+
+
 class RidgeMetric(BaseMetric):
     def __init__(
         self,
@@ -112,6 +151,12 @@ class RidgeMetric(BaseMetric):
                 N_test = test_source.shape[0]
                 test_source = test_source.reshape(N_test, -1)
 
+        # Torch path fills these for alpha-selection / overfit diagnostics in the pkl.
+        best_alpha = None
+        best_score = None
+        X_train_param = None
+        y_train_param = None
+
         if self.mode == "sklearn":
             # Check if we should use subsampled alpha search
             if (self.subsample_features_for_alpha is not None and
@@ -145,11 +190,30 @@ class RidgeMetric(BaseMetric):
                     best_score = score_pearson.mean()
                     best_alpha = alpha
 
+            if best_alpha is not None:
+                print(
+                    f"   [TorchRidge] Best Alpha: {best_alpha} "
+                    f"(Val R2: {best_score:.4f}) [90/10 selection split]"
+                )
+
             def model_factory(): return TorchRidge(alpha=best_alpha)
 
         if test_source is None:
-            return run_kfold_cv(model_factory, source, target, scoring_funcs, stratify_on=stratify_on)
-        return run_eval(model_factory, source, target, test_source, test_target, scoring_funcs)
+            out = run_kfold_cv(model_factory, source, target, scoring_funcs, stratify_on=stratify_on)
+        else:
+            out = run_eval(model_factory, source, target, test_source, test_target, scoring_funcs)
+
+        if (
+            self.mode == "torch"
+            and best_alpha is not None
+            and X_train_param is not None
+            and y_train_param is not None
+            and best_score is not None
+        ):
+            out = _attach_torch_ridge_diagnostics(
+                out, best_alpha, best_score, X_train_param, y_train_param
+            )
+        return out
 
     def compute(
         self,
