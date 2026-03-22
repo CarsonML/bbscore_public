@@ -23,42 +23,104 @@ except Exception:  # pragma: no cover – silently fall back to sklearn
     )
 
 
-def _attach_torch_ridge_diagnostics(
-    out: Dict,
-    best_alpha: float,
-    alpha_selection_val_mean_r2: float,
-    X_train_param: np.ndarray,
-    y_train_param: np.ndarray,
-) -> Dict:
-    """
-    Persist TorchRidge alpha-selection stats that mirror console logging
-    (\"Best Alpha\" / validation mean R² on the 90/10 split used to pick alpha).
-
-    Keys (stored in metric dict → end up in .pkl under joint_ridge / torch_ridge):
-      - ridge_best_alpha
-      - ridge_alpha_selection_val_mean_r2  (same idea as printed Val R²)
-      - ridge_alpha_selection_train_mean_r2 (in-sample train R² at that alpha)
-      - ridge_alpha_overfit_gap (train − val on the selection split; key name contains \"alpha\" for passthrough)
-    """
-    out = dict(out)
-    fm = TorchRidge(alpha=best_alpha)
-    fm.fit(X_train_param, y_train_param)
-    preds_train = fm.predict(X_train_param)
-    if hasattr(preds_train, "cpu"):
-        preds_train = preds_train.cpu().numpy()
-    train_mean = float(
+def _mean_r2_across_targets(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+    """Mean per-target R² (same aggregation as the alpha-selection loop)."""
+    return float(
         np.mean(
             [
-                r2_score(y_train_param[:, i], preds_train[:, i])
-                for i in range(y_train_param.shape[1])
+                r2_score(y_true[:, i], y_pred[:, i])
+                for i in range(y_true.shape[1])
             ]
         )
     )
-    val_mean = float(alpha_selection_val_mean_r2)
+
+
+def _mean_pearson_across_targets(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+    """Mean per-target Pearson r (same aggregation as the alpha-selection loop)."""
+    return float(
+        np.mean(
+            [
+                pearson_correlation_scorer(y_true[:, i], y_pred[:, i])
+                for i in range(y_true.shape[1])
+            ]
+        )
+    )
+
+
+def _to_numpy_1d(x, dtype=np.float64) -> np.ndarray:
+    arr = np.asarray(x, dtype=dtype)
+    return arr.reshape(-1) if arr.ndim != 1 else arr
+
+
+def _attach_torch_ridge_diagnostics(
+    out: Dict,
+    best_alpha: float,
+    best_score: float,
+    best_idx: int,
+    alpha_grid: np.ndarray,
+    val_mean_per_alpha: np.ndarray,
+    train_mean_per_alpha: np.ndarray,
+    val_pearson_per_alpha: np.ndarray,
+    train_pearson_per_alpha: np.ndarray,
+) -> Dict:
+    """
+    Persist TorchRidge alpha-selection stats (full grid + best choice) on the
+    90/10 train/val split used to pick alpha — useful for overfitting curves.
+
+    Keys (metric dict → .pkl under joint_ridge / torch_ridge; names contain
+    \"alpha\" so RidgeMetric.compute passes them through without ceiling):
+
+    Grids (len == len(alpha_options), same order):
+      - ridge_alpha_grid
+      - ridge_alpha_selection_val_mean_r2_per_alpha
+      - ridge_alpha_selection_train_mean_r2_per_alpha
+      - ridge_alpha_selection_val_mean_pearson_per_alpha
+      - ridge_alpha_selection_train_mean_pearson_per_alpha
+      - ridge_alpha_overfit_gap_per_alpha  (train − val per alpha, R²)
+      - ridge_alpha_overfit_gap_pearson_per_alpha
+
+    Scalars for the chosen alpha (val-argmax; ties → last winner, same as loop):
+      - ridge_best_alpha
+      - ridge_alpha_selection_best_idx
+      - ridge_alpha_selection_val_mean_r2  (printed \"Val R2\")
+      - ridge_alpha_selection_train_mean_r2
+      - ridge_alpha_overfit_gap
+      - ridge_alpha_selection_val_mean_pearson / ridge_alpha_selection_train_mean_pearson
+      - ridge_alpha_overfit_gap_pearson
+    """
+    out = dict(out)
+    alpha_grid = _to_numpy_1d(alpha_grid)
+    val_mean_per_alpha = _to_numpy_1d(val_mean_per_alpha)
+    train_mean_per_alpha = _to_numpy_1d(train_mean_per_alpha)
+    val_pearson_per_alpha = _to_numpy_1d(val_pearson_per_alpha)
+    train_pearson_per_alpha = _to_numpy_1d(train_pearson_per_alpha)
+    gap_per_alpha = train_mean_per_alpha - val_mean_per_alpha
+    gap_pearson_per_alpha = train_pearson_per_alpha - val_pearson_per_alpha
+
+    out["ridge_alpha_grid"] = alpha_grid
+    out["ridge_alpha_selection_val_mean_r2_per_alpha"] = val_mean_per_alpha
+    out["ridge_alpha_selection_train_mean_r2_per_alpha"] = train_mean_per_alpha
+    out["ridge_alpha_selection_val_mean_pearson_per_alpha"] = val_pearson_per_alpha
+    out["ridge_alpha_selection_train_mean_pearson_per_alpha"] = train_pearson_per_alpha
+    out["ridge_alpha_overfit_gap_per_alpha"] = gap_per_alpha
+    out["ridge_alpha_overfit_gap_pearson_per_alpha"] = gap_pearson_per_alpha
+
     out["ridge_best_alpha"] = np.float64(best_alpha)
-    out["ridge_alpha_selection_val_mean_r2"] = np.float64(val_mean)
-    out["ridge_alpha_selection_train_mean_r2"] = np.float64(train_mean)
-    out["ridge_alpha_overfit_gap"] = np.float64(train_mean - val_mean)
+    out["ridge_alpha_selection_best_idx"] = np.int64(best_idx)
+    out["ridge_alpha_selection_val_mean_r2"] = np.float64(best_score)
+    out["ridge_alpha_selection_train_mean_r2"] = np.float64(
+        train_mean_per_alpha[best_idx]
+    )
+    out["ridge_alpha_selection_val_mean_pearson"] = np.float64(
+        val_pearson_per_alpha[best_idx]
+    )
+    out["ridge_alpha_selection_train_mean_pearson"] = np.float64(
+        train_pearson_per_alpha[best_idx]
+    )
+    out["ridge_alpha_overfit_gap"] = np.float64(gap_per_alpha[best_idx])
+    out["ridge_alpha_overfit_gap_pearson"] = np.float64(
+        gap_pearson_per_alpha[best_idx]
+    )
     return out
 
 
@@ -154,8 +216,14 @@ class RidgeMetric(BaseMetric):
         # Torch path fills these for alpha-selection / overfit diagnostics in the pkl.
         best_alpha = None
         best_score = None
+        best_idx = None
         X_train_param = None
         y_train_param = None
+        alpha_grid_arr = None
+        val_per_alpha_arr = None
+        train_per_alpha_arr = None
+        val_pearson_per_alpha_arr = None
+        train_pearson_per_alpha_arr = None
 
         if self.mode == "sklearn":
             # Check if we should use subsampled alpha search
@@ -178,17 +246,47 @@ class RidgeMetric(BaseMetric):
                 source, target, test_size=0.1, random_state=42)
             best_alpha = None
             best_score = -np.inf
-            for alpha in self.alpha_options:
+            best_idx = None
+            val_per_alpha_list: List[float] = []
+            train_per_alpha_list: List[float] = []
+            val_pearson_per_alpha_list: List[float] = []
+            train_pearson_per_alpha_list: List[float] = []
+            for i_alpha, alpha in enumerate(self.alpha_options):
                 model = TorchRidge(alpha=alpha)
                 model.fit(X_train_param, y_train_param)
                 preds_val = model.predict(X_val_param)
                 if isinstance(preds_val, torch.Tensor):
                     preds_val = preds_val.cpu().numpy()
-                score_pearson = np.array([r2_score(
-                    y_val_param[:, i], preds_val[:, i]) for i in range(y_val_param.shape[1])])
-                if score_pearson.mean() > best_score:
-                    best_score = score_pearson.mean()
+                val_mean = _mean_r2_across_targets(y_val_param, preds_val)
+
+                preds_train = model.predict(X_train_param)
+                if isinstance(preds_train, torch.Tensor):
+                    preds_train = preds_train.cpu().numpy()
+                train_mean = _mean_r2_across_targets(y_train_param, preds_train)
+
+                val_per_alpha_list.append(val_mean)
+                train_per_alpha_list.append(train_mean)
+                val_pearson_per_alpha_list.append(
+                    _mean_pearson_across_targets(y_val_param, preds_val)
+                )
+                train_pearson_per_alpha_list.append(
+                    _mean_pearson_across_targets(y_train_param, preds_train)
+                )
+
+                if val_mean > best_score:
+                    best_score = val_mean
                     best_alpha = alpha
+                    best_idx = i_alpha
+
+            alpha_grid_arr = np.asarray(self.alpha_options, dtype=np.float64)
+            val_per_alpha_arr = np.asarray(val_per_alpha_list, dtype=np.float64)
+            train_per_alpha_arr = np.asarray(train_per_alpha_list, dtype=np.float64)
+            val_pearson_per_alpha_arr = np.asarray(
+                val_pearson_per_alpha_list, dtype=np.float64
+            )
+            train_pearson_per_alpha_arr = np.asarray(
+                train_pearson_per_alpha_list, dtype=np.float64
+            )
 
             if best_alpha is not None:
                 print(
@@ -206,12 +304,24 @@ class RidgeMetric(BaseMetric):
         if (
             self.mode == "torch"
             and best_alpha is not None
-            and X_train_param is not None
-            and y_train_param is not None
+            and best_idx is not None
+            and alpha_grid_arr is not None
+            and val_per_alpha_arr is not None
+            and train_per_alpha_arr is not None
+            and val_pearson_per_alpha_arr is not None
+            and train_pearson_per_alpha_arr is not None
             and best_score is not None
         ):
             out = _attach_torch_ridge_diagnostics(
-                out, best_alpha, best_score, X_train_param, y_train_param
+                out,
+                best_alpha,
+                best_score,
+                best_idx,
+                alpha_grid_arr,
+                val_per_alpha_arr,
+                train_per_alpha_arr,
+                val_pearson_per_alpha_arr,
+                train_pearson_per_alpha_arr,
             )
         return out
 
